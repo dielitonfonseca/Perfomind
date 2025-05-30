@@ -9,7 +9,8 @@ function App() {
 
   return (
     <div className="App">
-      <h2>Encerramento de Ordem de Serviço THE</h2>
+      <h1>Perfomind</h1>
+      <h2>Performance com inteligência</h2>
       <Form setFormData={setFormData} /> {/* Passa a função para atualizar os dados do formulário */}
       {formData && <Output data={formData} />} {/* Renderiza o Output apenas se houver dados */}
       <Dashboard /> {/* Adiciona o Dashboard para visualização dos dados */}

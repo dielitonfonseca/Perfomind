@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore'; // Importe doc e setDoc
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore'; // Importe doc e setDoc, remova addDoc
 
 function Form({ setFormData }) {
-  // ... (Estados e funções existentes)
   const [numero, setNumero] = useState('');
   const [cliente, setCliente] = useState('');
   const [tecnicoSelect, setTecnicoSelect] = useState('');
@@ -20,7 +19,7 @@ function Form({ setFormData }) {
     const tecnicoSalvo = localStorage.getItem('tecnico');
     if (tecnicoSalvo) {
       if (
-        ['Guilherme', 'Rafael', 'Josias', 'Wallison'].includes(tecnicoSalvo)
+        ['Dieliton', 'Matheus', 'Daniel', 'Wallysson', 'João Pedro', 'Claudio Cris', 'Fernando'].includes(tecnicoSalvo)
       ) {
         setTecnicoSelect(tecnicoSalvo);
         setTecnicoManual('');
@@ -66,7 +65,7 @@ Observações: ${observacoes}
     event.preventDefault();
 
     const tipoOS = isSamsung ? 'samsung' : 'assurant';
-    const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim(); // Remove espaços em branco
+    const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
     const numeroOS = numero.trim();
     const clienteNome = cliente.trim();
 
@@ -97,24 +96,27 @@ Observações: ${observacoes}
 
     setFormData(resultadoTexto);
 
-    // --- Lógica para enviar dados ao Firebase com a nova estrutura ---
     try {
       const today = new Date();
       const dateString = today.getFullYear() + '-' +
                          String(today.getMonth() + 1).padStart(2, '0') + '-' +
-                         String(today.getDate()).padStart(2, '0'); // Formato AAAA-MM-DD
+                         String(today.getDate()).padStart(2, '0');
 
       // 1. Criar ou obter o documento do técnico na coleção principal 'ordensDeServico'
       const tecnicoDocRef = doc(db, 'ordensDeServico', tecnicoFinal);
-      await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true }); // Cria o doc se não existir, ou atualiza
+      await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true });
 
-      // 2. Adicionar a OS na subcoleção 'osPorData' -> '{data_documento}' -> 'ordens'
+      // 2. Adicionar a OS na subcoleção 'osPorData' -> '{data_documento}'
       const osPorDataCollectionRef = collection(tecnicoDocRef, 'osPorData');
       const dataDocRef = doc(osPorDataCollectionRef, dateString);
-      await setDoc(dataDocRef, { data: dateString }, { merge: true }); // Cria o doc da data se não existir
+      await setDoc(dataDocRef, { data: dateString }, { merge: true });
 
-      const ordensCollectionRef = collection(dataDocRef, 'ordens');
-      await addDoc(ordensCollectionRef, {
+      // 3. Adicionar a OS na subcoleção 'Samsung' ou 'Assurant' dentro da data, usando numeroOS como ID
+      const targetCollectionName = isSamsung ? 'Samsung' : 'Assurant';
+      const targetCollectionRef = collection(dataDocRef, targetCollectionName);
+      const osDocRef = doc(targetCollectionRef, numeroOS); // Usando numeroOS como ID do documento
+
+      await setDoc(osDocRef, {
         numeroOS: numeroOS,
         cliente: clienteNome,
         tecnico: tecnicoFinal,
@@ -123,8 +125,7 @@ Observações: ${observacoes}
         reparo: reparoFinal,
         pecaSubstituida: pecaFinal,
         observacoes: observacoes,
-        dataGeracao: serverTimestamp(), // Adiciona um timestamp do servidor
-        // Adicionar um timestamp local também pode ser útil para ordenação dentro do dia
+        dataGeracao: serverTimestamp(),
         dataGeracaoLocal: new Date().toISOString()
       });
 
@@ -133,7 +134,6 @@ Observações: ${observacoes}
       console.error("Erro ao adicionar documento: ", e);
       alert('Erro ao cadastrar ordem de serviço no Firebase. Verifique o console para mais detalhes.');
     }
-    // --- Fim da lógica do Firebase ---
 
     // Limpa o formulário após o envio
     setNumero('');
@@ -201,10 +201,13 @@ Observações: ${observacoes}
           onChange={(e) => setTecnicoSelect(e.target.value)}
         >
           <option value="">Selecione um técnico</option>
-          <option value="Guilherme">Guilherme🏍️</option>
-          <option value="Rafael">Rafael Alencar🦇</option>
-          <option value="Josias">Josias</option>
-          <option value="Wallison">Wallison</option>
+          <option value="Dieliton">Dieliton 😎</option>
+          <option value="Matheus">Matheus</option>
+          <option value="Claudio Cris">Claudio Cris</option>
+          <option value="Wallysson">Wallysson</option>
+          <option value="Joao">João Pedro</option>
+          <option value="Fernando">Fernando</option>
+          <option value="Daniel">Daniel</option>
           <option value="nao_achei">Não achei a opção certa</option>
         </select>
 
@@ -337,7 +340,7 @@ Observações: ${observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         ></textarea>
 
-        <button type="submit">Gerar Resultado &#x1F91D</button>
+        <button type="submit">Gerar Resultado!</button>
       </form>
     </>
   );
