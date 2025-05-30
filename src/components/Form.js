@@ -129,7 +129,7 @@ Observações: ${observacoes}
         dataGeracaoLocal: new Date().toISOString()
       });
 
-      alert('Ordem de serviço cadastrada no Firebase com sucesso!');
+      console.log('Ordem de serviço cadastrada no Firebase com sucesso!');
     } catch (e) {
       console.error("Erro ao adicionar documento: ", e);
       alert('Erro ao cadastrar ordem de serviço no Firebase. Verifique o console para mais detalhes.');
