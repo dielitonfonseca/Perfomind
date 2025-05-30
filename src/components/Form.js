@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { db } from '../firebaseConfig';
+import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore'; // Importe doc e setDoc
 
 function Form({ setFormData }) {
-  // Estados para os campos do formulário
+  // ... (Estados e funções existentes)
   const [numero, setNumero] = useState('');
   const [cliente, setCliente] = useState('');
   const [tecnicoSelect, setTecnicoSelect] = useState('');
@@ -12,9 +14,8 @@ function Form({ setFormData }) {
   const [reparoManual, setReparoManual] = useState('');
   const [peca, setPeca] = useState('');
   const [observacoes, setObservacoes] = useState('');
-  const [isSamsung, setIsSamsung] = useState(true); // Controla qual tipo de OS está selecionado
+  const [isSamsung, setIsSamsung] = useState(true);
 
-  // Efeitos para carregar/salvar o técnico no localStorage
   useEffect(() => {
     const tecnicoSalvo = localStorage.getItem('tecnico');
     if (tecnicoSalvo) {
@@ -38,7 +39,6 @@ function Form({ setFormData }) {
     }
   }, [tecnicoSelect, tecnicoManual]);
 
-  // Função de validação de número de OS
   const validarNumero = (num, tipo) => {
     const padraoSamsung = /^417\d{7}$/;
     const padraoAssurant = /^\d{8}$/;
@@ -47,7 +47,6 @@ function Form({ setFormData }) {
     return false;
   };
 
-  // Função para gerar o texto de resultado
   const gerarTextoResultado = (data) => {
     const { numero, cliente, tecnico, defeito, reparo, peca, observacoes, tipo } = data;
     const linhaDefeito = tipo === 'samsung' ? `Código de defeito: ${defeito}` : `Defeito: ${defeito}`;
@@ -63,19 +62,20 @@ Observações: ${observacoes}
 . . . . .`;
   };
 
-  // Lidar com o envio do formulário
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     const tipoOS = isSamsung ? 'samsung' : 'assurant';
-    const tecnicoFinal = tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect;
+    const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim(); // Remove espaços em branco
+    const numeroOS = numero.trim();
+    const clienteNome = cliente.trim();
 
-    if (!validarNumero(numero, tipoOS)) {
+    if (!validarNumero(numeroOS, tipoOS)) {
       alert(`Número inválido. Para OS ${tipoOS === 'samsung' ? 'Samsung (417XXXXXXX)' : 'Assurant (8 dígitos)'}.`);
       return;
     }
 
-    if (!cliente || !tecnicoFinal) {
+    if (!clienteNome || !tecnicoFinal) {
       alert("Preencha os campos obrigatórios: Cliente e Técnico.");
       return;
     }
@@ -85,8 +85,8 @@ Observações: ${observacoes}
     const pecaFinal = isSamsung ? peca : '';
 
     const resultadoTexto = gerarTextoResultado({
-      numero,
-      cliente,
+      numero: numeroOS,
+      cliente: clienteNome,
       tecnico: tecnicoFinal,
       defeito: defeitoFinal,
       reparo: reparoFinal,
@@ -95,11 +95,50 @@ Observações: ${observacoes}
       tipo: tipoOS,
     });
 
-    setFormData(resultadoTexto); // Atualiza o estado no componente pai (App.js)
+    setFormData(resultadoTexto);
+
+    // --- Lógica para enviar dados ao Firebase com a nova estrutura ---
+    try {
+      const today = new Date();
+      const dateString = today.getFullYear() + '-' +
+                         String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                         String(today.getDate()).padStart(2, '0'); // Formato AAAA-MM-DD
+
+      // 1. Criar ou obter o documento do técnico na coleção principal 'ordensDeServico'
+      const tecnicoDocRef = doc(db, 'ordensDeServico', tecnicoFinal);
+      await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true }); // Cria o doc se não existir, ou atualiza
+
+      // 2. Adicionar a OS na subcoleção 'osPorData' -> '{data_documento}' -> 'ordens'
+      const osPorDataCollectionRef = collection(tecnicoDocRef, 'osPorData');
+      const dataDocRef = doc(osPorDataCollectionRef, dateString);
+      await setDoc(dataDocRef, { data: dateString }, { merge: true }); // Cria o doc da data se não existir
+
+      const ordensCollectionRef = collection(dataDocRef, 'ordens');
+      await addDoc(ordensCollectionRef, {
+        numeroOS: numeroOS,
+        cliente: clienteNome,
+        tecnico: tecnicoFinal,
+        tipoOS: tipoOS,
+        defeito: defeitoFinal,
+        reparo: reparoFinal,
+        pecaSubstituida: pecaFinal,
+        observacoes: observacoes,
+        dataGeracao: serverTimestamp(), // Adiciona um timestamp do servidor
+        // Adicionar um timestamp local também pode ser útil para ordenação dentro do dia
+        dataGeracaoLocal: new Date().toISOString()
+      });
+
+      alert('Ordem de serviço cadastrada no Firebase com sucesso!');
+    } catch (e) {
+      console.error("Erro ao adicionar documento: ", e);
+      alert('Erro ao cadastrar ordem de serviço no Firebase. Verifique o console para mais detalhes.');
+    }
+    // --- Fim da lógica do Firebase ---
+
     // Limpa o formulário após o envio
     setNumero('');
     setCliente('');
-    setTecnicoSelect(localStorage.getItem('tecnico') || ''); // Restaura o técnico salvo
+    setTecnicoSelect(localStorage.getItem('tecnico') || '');
     setTecnicoManual('');
     setDefeitoSelect('');
     setDefeitoManual('');
@@ -162,13 +201,10 @@ Observações: ${observacoes}
           onChange={(e) => setTecnicoSelect(e.target.value)}
         >
           <option value="">Selecione um técnico</option>
-          <option value="Dieliton">Dieliton 🕶️</option>
-          <option value="Matheus">Matheus</option>
-          <option value="João Pedro">João Pedro</option>
-          <option value="Wallysson">Wallysson</option>
-          <option value="Claudio">Claudio Cris</option>
-          <option value="Daniel">Daniel Moraes</option>
-          <option value="Fernando">Fernando</option>
+          <option value="Guilherme">Guilherme🏍️</option>
+          <option value="Rafael">Rafael Alencar🦇</option>
+          <option value="Josias">Josias</option>
+          <option value="Wallison">Wallison</option>
           <option value="nao_achei">Não achei a opção certa</option>
         </select>
 
@@ -301,7 +337,7 @@ Observações: ${observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         ></textarea>
 
-        <button type="submit">Gerar Resultado </button>
+        <button type="submit">Gerar Resultado &#x1F91D</button>
       </form>
     </>
   );
