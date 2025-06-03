@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore'; // Importe doc e setDoc, remova addDoc
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 function Form({ setFormData }) {
   const [numero, setNumero] = useState('');
@@ -258,6 +258,10 @@ Observações: ${observacoes}
               <option value="AEN">AEN - Imagem distorcida</option>
               <option value="AG1">AG1 - Sem som</option>
               <option value="AG2">AG2 - Som intermitente</option>
+              <option value="HKF">HKF - Ruído mecânico</option>
+              <option value="HK9">HK9 - Barulho excessivo</option>
+              <option value="HK2">HK2 - Barulho no ventilador</option>
+              <option value="HK3">HK3 - Barulho no compressor</option>
               <option value="HE1">HE1 - Não Refrigera</option>
               <option value="HE3">HE3 - Refrigeração excessiva</option>
               <option value="HE7">HE7 - Dreno bloqueado</option>
