@@ -258,6 +258,9 @@ Observações: ${observacoes}
               <option value="AEN">AEN - Imagem distorcida</option>
               <option value="AG1">AG1 - Sem som</option>
               <option value="AG2">AG2 - Som intermitente</option>
+              <option value="AG4">AG4 - Som distorcido</option>
+              <option value="AM3">AM3 - Controle remoto não funciona</option>
+              <option value="TLA">AG2 - WiFi não funciona</option>
               <option value="HE1">HE1 - Não Refrigera</option>
               <option value="HE3">HE3 - Refrigeração excessiva</option>
               <option value="HE7">HE7 - Dreno bloqueado</option>
@@ -297,6 +300,8 @@ Observações: ${observacoes}
               <option value="A17">A17 - Substituição do sensor</option>
               <option value="X01">X01 - NDF Nenhum defeito encontrado</option>
               <option value="A15">A15 - Troca de compressor</option>
+              <option value="A17">A17 - Troca do sensor</option>
+              <option value="A20">A20 - Troca de acessório (ex. controle)</option>
               <option value="nao_achei">Não achei a opção certa</option>
             </select>
 
