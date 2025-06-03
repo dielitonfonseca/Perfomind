@@ -258,10 +258,6 @@ Observações: ${observacoes}
               <option value="AEN">AEN - Imagem distorcida</option>
               <option value="AG1">AG1 - Sem som</option>
               <option value="AG2">AG2 - Som intermitente</option>
-              <option value="HKF">HKF - Ruído mecânico</option>
-              <option value="HK9">HK9 - Barulho excessivo</option>
-              <option value="HK2">HK2 - Barulho no ventilador</option>
-              <option value="HK3">HK3 - Barulho no compressor</option>
               <option value="HE1">HE1 - Não Refrigera</option>
               <option value="HE3">HE3 - Refrigeração excessiva</option>
               <option value="HE7">HE7 - Dreno bloqueado</option>
@@ -273,6 +269,9 @@ Observações: ${observacoes}
               <option value="HG5">HG4 - Não seca</option>
               <option value="HG6">HG6 - Transborda água</option>
               <option value="HG7">HG7 - Fornecimento de sabão/amaciante com defeito</option>
+              <option value="HKF">HKF - Ruído mecânico</option>
+              <option value="HK9">HK9 - Barulho excessivo</option>
+              <option value="HK2">HK2 - Barulho no ventilador</option>
               <option value="HK3">HK3 - Barulho no compressor</option>
               <option value="HK4">HK4 - Barulho nos tubos</option>
               <option value="HLC">HLC - Compressor não funciona</option>
