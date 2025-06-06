@@ -1,8 +1,71 @@
 body {
     font-family: Arial, sans-serif;
-    padding: 20px;
+    padding: 0;
+    margin: 0;
     background-color: #1a1a1a;
     color: #e0e0e0;
+    overflow-x: hidden;
+}
+
+/* Estilos para o Header */
+.app-header {
+    background-color: #2c2f38;
+    color: #e0e0e0;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Para espaçar o título e os links */
+    position: fixed; /* Fixa o header no topo */
+    width: 100%;
+    top: 0;
+    left: 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    box-sizing: border-box; /* Garante que o padding não aumente a largura */
+}
+
+.app-title {
+    margin: 0;
+    font-size: 1.5em;
+    text-align: left;
+}
+
+/* Remove completamente o ícone de menu, garantindo que não seja renderizado ou estilizado */
+.menu-icon {
+    display: none;
+}
+
+/* Estilos para a navegação principal no header */
+.main-nav ul {
+    list-style: none; /* Remove marcadores de lista */
+    padding: 0;
+    margin: 0;
+    display: flex; /* Para alinhar os links lado a lado */
+    gap: 10px; /* Espaço entre os botões */
+}
+
+.main-nav li a {
+    text-decoration: none;
+    color: white; /* Cor do texto para parecer botão */
+    background-color: #007BFF; /* Cor de fundo do botão */
+    font-weight: bold;
+    padding: 8px 12px; /* Padding para os botões */
+    border-radius: 5px; /* Bordas arredondadas para os botões */
+    transition: background-color 0.3s ease;
+    white-space: nowrap; /* Evita que o texto quebre em várias linhas */
+    font-size: 0.9em; /* Tamanho da fonte menor para botões pequenos */
+}
+
+.main-nav li a:hover {
+    background-color: #0056b3; /* Cor de fundo ao passar o mouse */
+}
+
+
+
+/* Ajustar o conteúdo principal para não ficar sob o header fixo */
+.main-content {
+    margin-top: 70px; /* Altura do header + um pouco de espaçamento */
+    padding: 20px;
 }
 
 form,
@@ -13,10 +76,11 @@ form,
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     max-width: 600px;
-    margin: 0 auto;
+    margin-left: auto;
+    margin-right: auto;
 }
 
-h1{
+h1 {
     text-align: center;
 }
 h2,
@@ -75,13 +139,25 @@ pre {
     color: #e0e0e0;
 }
 
+/* Ajustes responsivos para telas menores */
 @media (max-width: 768px) {
-    body {
-        padding: 10px;
+    .main-content {
+        margin-top: 60px;
     }
-
-    form {
-        padding: 15px;
+    .app-header {
+        flex-direction: row; /* Mantém na linha */
+        justify-content: space-between; /* Mantém espaçamento */
+        padding: 10px; /* Ajuste o padding para telas menores */
+    }
+    .app-title {
+        font-size: 1.2em; /* Tamanho da fonte menor para o título em telas pequenas */
+    }
+    .main-nav ul {
+        gap: 5px; /* Reduz o espaço entre os botões em telas pequenas */
+    }
+    .main-nav li a {
+        padding: 6px 10px; /* Padding menor para os botões em telas pequenas */
+        font-size: 0.8em; /* Tamanho da fonte menor para os botões em telas pequenas */
     }
 }
 

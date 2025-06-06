@@ -1,20 +1,45 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import './App.css';
 import Form from './components/Form';
 import Output from './components/Output';
-import Dashboard from './components/Dashboard'; // Importa o novo componente
+import DashboardPage from './pages/DashboardPage';
 
 function App() {
-  const [formData, setFormData] = useState(null); // Estado para armazenar os dados do formulário preenchido
+  const [formData, setFormData] = useState(null);
 
   return (
-    <div className="App">
-      <h1>Perfomind</h1>
-      <h2>Performance com inteligência</h2>
-      <Form setFormData={setFormData} /> {/* Passa a função para atualizar os dados do formulário */}
-      {formData && <Output data={formData} />} {/* Renderiza o Output apenas se houver dados */}
-      <Dashboard /> {/* Adiciona o Dashboard para visualização dos dados */}
-    </div>
+    <Router>
+      <div className="App">
+        {/* Header com os links de navegação visíveis no lado direito */}
+        <header className="app-header">
+          <h1 className="app-title">Perfomind</h1>
+          <nav className="main-nav">
+            <ul>
+              <li>
+                <Link to="/">Início</Link>
+              </li>
+              <li>
+                <Link to="/dashboard">Dashboard</Link>
+              </li>
+            </ul>
+          </nav>
+        </header>
+
+        {/* Conteúdo principal */}
+        <div className="main-content">
+          <Routes>
+            <Route path="/" element={
+              <>
+                <Form setFormData={setFormData} />
+                {formData && <Output data={formData} />}
+              </>
+            } />
+            <Route path="/dashboard" element={<DashboardPage />} />
+          </Routes>
+        </div>
+      </div>
+    </Router>
   );
 }
 
