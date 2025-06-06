@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, doc, onSnapshot, getDocs } from 'firebase/firestore'; 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { collection, doc, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label } from 'recharts';
 
 function Dashboard() {
   const [rankedData, setRankedData] = useState([]);
+  const [ltpvdData, setLtpvdData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -16,6 +17,7 @@ function Dashboard() {
 
     const setupRealtimeListeners = async () => {
       try {
+        // --- Lógica para o Ranking de Técnicos (já existente) ---
         const tecnicoCollectionRef = collection(db, 'ordensDeServico');
 
         const unsubscribeTecnicos = onSnapshot(tecnicoCollectionRef, async (tecnicoSnapshot) => {
@@ -23,7 +25,6 @@ function Dashboard() {
 
           if (tecnicoSnapshot.empty) {
             setRankedData([]);
-            setLoading(false);
             return;
           }
 
@@ -67,8 +68,6 @@ function Dashboard() {
           })).sort((a, b) => b.total - a.total);
 
           setRankedData(sortedTechnicians);
-          setLoading(false);
-
         }, (err) => {
           console.error("Erro no listener de técnicos:", err);
           setError("Erro ao carregar dados em tempo real. Verifique as permissões do Firebase.");
@@ -76,6 +75,30 @@ function Dashboard() {
         });
 
         unsubscribes.push(unsubscribeTecnicos);
+
+        // --- Lógica para buscar os KPIs das últimas 4 semanas ordenadas por timestamp ---
+        const kpisCollectionRef = collection(db, 'kpis');
+        const q = query(kpisCollectionRef, orderBy('timestamp', 'desc'), limit(4));
+
+        const unsubscribeKpis = onSnapshot(q, (snapshot) => {
+          const kpisData = [];
+          snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            kpisData.push({
+              name: `Semana ${data.week}`,
+              'LTP VD %': parseFloat(data['LTP VD %']),
+              'LTP VD QTD': parseFloat(data['LTP VD QTD']), // Adiciona a QTD para o gráfico
+            });
+          });
+          setLtpvdData(kpisData); // Mantém a ordem da mais recente para a mais antiga
+          setLoading(false);
+        }, (err) => {
+          console.error("Erro no listener de KPIs:", err);
+          setError("Erro ao carregar dados de KPIs. Verifique as permissões do Firebase.");
+          setLoading(false);
+        });
+
+        unsubscribes.push(unsubscribeKpis);
 
       } catch (err) {
         console.error("Erro ao configurar listeners do Firebase: ", err);
@@ -99,6 +122,30 @@ function Dashboard() {
   if (error) {
     return <div style={{ textAlign: 'center', color: 'red' }}>{error}</div>;
   }
+
+  // Componente de Tooltip customizado para exibir a QTD
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload; // Pega o objeto de dados completo para o ponto
+      return (
+        <div className="custom-tooltip" style={{
+          backgroundColor: '#333',
+          border: '1px solid #555',
+          borderRadius: '5px',
+          padding: '10px',
+          color: '#e0e0e0'
+        }}>
+          <p className="label" style={{ color: '#007BFF', margin: 0, marginBottom: '5px' }}>{label}</p>
+          <p style={{ margin: 0 }}>{`${payload[0].name}: ${payload[0].value}%`}</p>
+          {dataPoint['LTP VD QTD'] !== undefined && ( // Verifica se a QTD existe
+            <p style={{ margin: 0 }}>{`LTP VD QTD: ${dataPoint['LTP VD QTD']}`}</p>
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="output" style={{ marginTop: '20px', textAlign: 'center' }}>
@@ -146,18 +193,18 @@ function Dashboard() {
                   left: 20,
                   bottom: 5,
                 }}
-                style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }} // Fundo do gráfico
+                style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} /> {/* Cor dos ticks e labels do eixo X */}
-                <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} /> {/* Cor dos ticks e labels do eixo Y */}
+                <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
+                <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
                 <Tooltip
                   wrapperStyle={{ backgroundColor: '#333', border: '1px solid #555', borderRadius: '5px', padding: '10px' }}
                   labelStyle={{ color: '#007BFF' }}
                   itemStyle={{ color: '#e0e0e0' }}
-                  contentStyle={{ backgroundColor: '#333', border: '1px solid #555' }} // Fundo do tooltip
+                  contentStyle={{ backgroundColor: '#333', border: '1px solid #555' }}
                 />
-                <Legend wrapperStyle={{ color: '#e0e0e0' }} /> {/* Cor da legenda */}
+                <Legend wrapperStyle={{ color: '#e0e0e0' }} />
                 <Bar dataKey="total" fill="#007BFF" name="Total OS" />
                 <Bar dataKey="samsung" fill="#82ca9d" name="OS Samsung" />
                 <Bar dataKey="assurant" fill="#ffc658" name="OS Assurant" />
@@ -165,6 +212,42 @@ function Dashboard() {
             </ResponsiveContainer>
           </div>
         </>
+      )}
+
+      {/* Novo Gráfico de Linha para LTP VD % */}
+      <h3 style={{ marginTop: '40px' }}>KPI: LTP VD % (Últimas 4 Semanas Registradas) 📈</h3>
+      {ltpvdData.length === 0 ? (
+        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "LTP VD %" encontrado para as últimas 4 semanas.</p>
+      ) : (
+        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={ltpvdData}
+              margin={{
+                top: 5,
+                right: 80,
+                left: 20,
+                bottom: 5,
+              }}
+              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
+              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 'auto']} />
+              <Tooltip content={<CustomTooltip />} /> {/* Usa o Tooltip customizado */}
+              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
+              <Line type="monotone" dataKey="LTP VD %" stroke="#8884d8" activeDot={{ r: 8 }} name="LTP VD %" />
+              <ReferenceLine y={12.8} stroke="#ffc658" strokeDasharray="3 3" >
+                <Label
+                  value="Meta: 12.8%"
+                  position="right"
+                  fill="#ffc658"
+                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
+                />
+              </ReferenceLine>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   );
