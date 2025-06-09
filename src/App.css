@@ -274,3 +274,27 @@ textarea:-webkit-autofill {
   margin-top: 0; /* Remove a margem superior padrão do h3 dentro do grid item */
   margin-bottom: 20px; /* Adiciona um pouco de margem inferior para separar do gráfico */
 }
+
+.no-data-message{
+    text-align: center;
+}
+
+.custom-tooltip {
+    background-color: #2c2f38; /* Darker background, similar to other components */
+    border: 1px solid #444; /* Soft border */
+    border-radius: 5px; /* Slightly rounded corners */
+    padding: 10px; /* Ample padding inside */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); /* A bit more pronounced shadow */
+    color: #e0e0e0; /* Light text color */
+    font-size: 0.9em; /* Readable font size */
+}
+
+.custom-tooltip .label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #007BFF; /* A touch of accent color for the label */
+}
+
+.custom-tooltip p {
+    margin: 3px 0; /* Space out the individual data points */
+}
