@@ -34,15 +34,28 @@ const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [
                 name={key.name}
               />
             ))}
-            {meta && (
-              <ReferenceLine y={meta.value} stroke={meta.stroke} strokeDasharray="3 3">
-                <Label
-                  value={meta.label}
-                  position="right"
-                  fill={meta.stroke}
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
+            {meta && Array.isArray(meta) ? ( // Check if meta is an array to render multiple lines
+              meta.map((m, idx) => (
+                <ReferenceLine key={idx} y={m.value} stroke={m.stroke} strokeDasharray="3 3">
+                  <Label
+                    value={m.label}
+                    position="right"
+                    fill={m.stroke}
+                    style={{ fontSize: '0.8em', textAnchor: 'start' }}
+                  />
+                </ReferenceLine>
+              ))
+            ) : ( // Keep existing behavior for single meta object for other charts
+              meta && (
+                <ReferenceLine y={meta.value} stroke={meta.stroke} strokeDasharray="3 3">
+                  <Label
+                    value={meta.label}
+                    position="right"
+                    fill={meta.stroke}
+                    style={{ fontSize: '0.8em', textAnchor: 'start' }}
+                  />
+                </ReferenceLine>
+              )
             )}
           </LineChart>
         </ResponsiveContainer>
@@ -267,7 +280,10 @@ function Dashboard() {
           data={ltpvdChartData}
           title="  LTP VD % (Últimas 4 Semanas Registradas)"
           dataKeys={[{ dataKey: 'LTP VD %', stroke: '#8884d8', name: 'LTP VD %' }]}
-          meta={{ value: 5, stroke: '#ffc658', label: 'Meta: 5%' }}
+          meta={[ // Now an array of meta objects for multiple reference lines
+            { value: 12.8, stroke: '#ffc658', label: 'Meta: 12.8%' },
+            { value: 5, stroke: '#FF0000', label: 'P4P: 5%' } // Adding the 5% line
+          ]}
           tooltipContent={<CustomTooltip />}
         />
 
@@ -275,7 +291,10 @@ function Dashboard() {
           data={ltpdaChartData}
           title="  LTP DA % (Últimas 4 Semanas Registradas)"
           dataKeys={[{ dataKey: 'LTP DA %', stroke: '#ff7300', name: 'LTP DA %' }]}
-          meta={{ value: 17.4, stroke: '#00C49F', label: 'Meta: 17.4%' }}
+          meta={[ // Now an array of meta objects for multiple reference lines
+            { value: 17.4, stroke: '#ffc658', label: 'Meta: 17.4%' },
+            { value: 7, stroke: '#FF0000', label: 'P4P: 7%' } // Adding the 5% line
+        ]}
           tooltipContent={<CustomTooltip />}
         />
 
