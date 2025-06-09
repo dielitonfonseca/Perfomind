@@ -101,6 +101,9 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+// Define META_ORC_IH outside the component to avoid re-definition on re-renders
+const META_ORC_IH = 75000;
+
 function Dashboard() {
   const [technicianRanking, setTechnicianRanking] = useState([]);
   const [kpiData, setKpiData] = useState([]);
@@ -179,6 +182,7 @@ function Dashboard() {
         const unsubscribeKpis = onSnapshot(q, (snapshot) => {
           const fetchedKpis = snapshot.docs.map(doc => ({
             name: `Semana ${doc.data().week}`,
+            week: doc.data().week, // Ensure week number is available for scoring
             ...doc.data(),
           }));
           setKpiData(fetchedKpis);
@@ -205,6 +209,84 @@ function Dashboard() {
       unsubscribes.forEach(unsubscribe => unsubscribe());
     };
   }, []);
+
+  // Function to calculate weekly metrics (score, accelerators, detractors, final)
+  const calculateWeeklyMetrics = (dataPoint) => {
+    let score = 0;
+    let accelerators = 0;
+    let detractors = 0;
+
+    // Base Score Calculation
+    const ltpVd = parseFloat(dataPoint['LTP VD %']);
+    const ltpDa = parseFloat(dataPoint['LTP DA %']);
+    const rrrVd = parseFloat(dataPoint['RRR VD %']);
+    const rrrDa = parseFloat(dataPoint['RRR DA %']);
+    const rnpsVd = parseFloat(dataPoint['R-NPS VD']);
+    const rnpsDa = parseFloat(dataPoint['R-NPS DA']);
+    const ssrVd = parseFloat(dataPoint['SSR VD']);
+    const ssrDa = parseFloat(dataPoint['SSR DA']);
+    const ecoRepairVd = parseFloat(dataPoint['ECO REPAIR VD']);
+    const ftcHappyCall = parseFloat(dataPoint['FTC HAPPY CALL']);
+
+    if (ltpVd <= 5) score += 2;
+    if (ltpDa <= 7) score += 1;
+    if (rrrVd <= 1.5) score += 1;
+    if (rrrDa <= 3) score += 1;
+    if (rnpsVd >= 80) score += 0.5;
+    if (rnpsDa >= 78) score += 0.5;
+    if (ssrVd <= 0.4) score += 1;
+    if (ssrDa <= 1.1) score += 1;
+    if (ecoRepairVd >= 60) score += 1;
+    if (ftcHappyCall >= 88) score += 1;
+
+    // Accelerators Calculation
+    const vendasStorePlus = parseFloat(dataPoint['VENDAS STORE+']);
+    const firstVisitVd = parseFloat(dataPoint['1ST VISIT VD']);
+    const poInHomeD1 = parseFloat(dataPoint['PO IN HOME D+1']);
+
+    if (vendasStorePlus >= 3) accelerators += 1;
+    if (firstVisitVd >= 20) accelerators += 1;
+    if (poInHomeD1 >= 70) accelerators += 1;
+
+    // Detractors Calculation
+    const treinamentos = parseFloat(dataPoint['Treinamentos']);
+    const inHomeD1 = parseFloat(dataPoint['IN HOME D+1']);
+    const orcamento = parseFloat(dataPoint['Orçamento']); // Assuming 'Orçamento' is a number
+
+    if (treinamentos < 100) detractors += 1; // Subtracting, so add to detractors
+    if (inHomeD1 < 20) detractors += 1; // Subtracting, so add to detractors
+    if (orcamento < META_ORC_IH) detractors += 1; // Subtracting, so add to detractors
+
+    // Final Score Calculation
+    const finalScore = score + accelerators - detractors;
+
+    return { score, accelerators, detractors, finalScore };
+  };
+
+  const weeklyScores = useMemo(() => {
+    return kpiData.map(dataPoint => ({
+      name: dataPoint.name,
+      ...calculateWeeklyMetrics(dataPoint), // Spread the returned object
+    }));
+  }, [kpiData]);
+
+  // Function to calculate commission
+  const calculateCommission = (finalScore) => {
+    if (finalScore < 5) {
+      return 0;
+    } else if (finalScore >= 5 && finalScore < 7) {
+      return 200;
+    } else if (finalScore >= 7 && finalScore < 9) {
+      return 300;
+    } else if (finalScore >= 9) {
+      return 400;
+    }
+    return 0; // Default case
+  };
+
+  const lastWeekScore = weeklyScores.length > 0 ? weeklyScores[0].finalScore : 0;
+  const lastWeekCommission = calculateCommission(lastWeekScore);
+
 
   // Memoized data for each KPI chart to prevent unnecessary re-renders
   const ltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [kpiData]);
@@ -240,7 +322,7 @@ function Dashboard() {
 
   return (
     <div className="output">
-      <h3>Ranking de Ordens de Serviço por Técnico ✅</h3>
+      <h3>Ranking de Ordens de Serviço por Técnico ✅ </h3>
       {technicianRanking.length === 0 ? (
         <p className="no-data-message">Nenhuma ordem de serviço encontrada para o ranking.</p>
       ) : (
@@ -467,6 +549,49 @@ function Dashboard() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* New table for Weekly Score, Accelerators, Detractors, and Final Score */}
+      <h3>Pontuação Semanal 🏆</h3>
+      {weeklyScores.length === 0 ? (
+        <p className="no-data-message">Nenhuma pontuação semanal encontrada.</p>
+      ) : (
+        <table style={{
+          width: '80%',
+          borderCollapse: 'collapse',
+          marginTop: '20px',
+          marginLeft: 'auto',
+          marginRight: 'auto'
+        }}>
+          <thead>
+            <tr style={{ background: '#333' }}>
+              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Semana</th>
+              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Pontuação</th>
+              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Aceleradores</th>
+              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Detratores</th>
+              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Final</th>
+            </tr>
+          </thead>
+          <tbody>
+            {weeklyScores.map((dataPoint, index) => (
+              <tr key={dataPoint.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
+                <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.name}</td>
+                <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.score}</td>
+                <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.accelerators}</td>
+                <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.detractors}</td>
+                <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.finalScore.toFixed(1)}</td> {/* Alterado aqui */}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* New H1 for last week's final score and commission */}
+      {weeklyScores.length > 0 && (
+        <h1 style={{ color: '#9e9e9e;', marginTop: '30px', marginBottom: '20px' }}>
+          Pontuação Final da Última Semana: {lastWeekScore.toFixed(1)} <br />
+          Comissionamento: R$ {lastWeekCommission.toFixed(2)}
+        </h1>
       )}
     </div>
   );
