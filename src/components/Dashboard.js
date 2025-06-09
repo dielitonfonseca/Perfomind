@@ -12,7 +12,7 @@ const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [
 
   return (
     <div className="kpi-chart-container">
-      <h3>{title} 📈</h3>
+      <h3>{title}    </h3>
       <div style={{ width: '100%', height: 300 }}> {/* Largura e altura para ResponsiveContainer */}
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -211,14 +211,10 @@ function Dashboard() {
   const ltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [kpiData]);
   const exltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [kpiData]);
   const exltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LPT DA %': parseFloat(d['EX LPT DA %']), 'EX LRP DA QTD': parseFloat(d['EX LRP DA QTD']) })), [kpiData]);
-  const ftcHappyCallChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC HAPPY CALL': parseFloat(d['FTC HAPPY CALL']) })), [kpiData]);
-  const ftcVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC VD': parseFloat(d['FTC VD']) })), [kpiData]);
-  const ftcDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC DA': parseFloat(d['FTC DA']) })), [kpiData]);
+  // Re-added useMemo for relevant data for the table, even if the graph is removed
   const ecoRepairVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'ECO REPAIR VD': parseFloat(d['ECO REPAIR VD']) })), [kpiData]);
-  const vendasStorePlusChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'VENDAS STORE+': parseFloat(d['VENDAS STORE+']) })), [kpiData]);
+  const ftcHappyCallChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC HAPPY CALL': parseFloat(d['FTC HAPPY CALL']) })), [kpiData]);
   const poInHomeD1ChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'PO IN HOME D+1': parseFloat(d['PO IN HOME D+1']) })), [kpiData]);
-  const treinamentosChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Treinamentos': parseFloat(d['Treinamentos']) })), [kpiData]);
-  const orcamentoChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Orçamento': parseFloat(d['Orçamento']) })), [kpiData]);
   const firstVisitVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, '1ST VISIT VD': parseFloat(d['1ST VISIT VD']) })), [kpiData]);
   const inHomeD1ChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'IN HOME D+1': parseFloat(d['IN HOME D+1']) })), [kpiData]);
   const rrrVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'RRR VD %': parseFloat(d['RRR VD %']), 'RRR VD QTD': parseFloat(d['RRR VD QTD']) })), [kpiData]);
@@ -227,6 +223,12 @@ function Dashboard() {
   const rnpsDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'R-NPS DA': parseFloat(d['R-NPS DA']) })), [kpiData]);
   const ssrVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR VD': parseFloat(d['SSR VD']) })), [kpiData]);
   const ssrDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR DA': parseFloat(d['SSR DA']) })), [kpiData]);
+
+  // Keep useMemo for these metrics for the table, even if their graphs are removed
+  const treinamentosChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Treinamentos': parseFloat(d['Treinamentos']) })), [kpiData]);
+  const orcamentoChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Orçamento': parseFloat(d['Orçamento']) })), [kpiData]);
+  const vendasStorePlusChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'VENDAS STORE+': parseFloat(d['VENDAS STORE+']) })), [kpiData]);
+
 
   if (loading) {
     return <div className="no-data-message">Carregando dados do Firebase...</div>;
@@ -278,7 +280,7 @@ function Dashboard() {
       <div className="kpi-grid">
         <KPIChart
           data={ltpvdChartData}
-          title="  LTP VD % (Últimas 4 Semanas Registradas)"
+          title="  LTP VD % ⬇️   "
           dataKeys={[{ dataKey: 'LTP VD %', stroke: '#8884d8', name: 'LTP VD %' }]}
           meta={[ // Now an array of meta objects for multiple reference lines
             { value: 12.8, stroke: '#ffc658', label: 'Meta: 12.8%' },
@@ -289,36 +291,81 @@ function Dashboard() {
 
         <KPIChart
           data={ltpdaChartData}
-          title="  LTP DA % (Últimas 4 Semanas Registradas)"
+          title="  LTP DA % ⬇️  "
           dataKeys={[{ dataKey: 'LTP DA %', stroke: '#ff7300', name: 'LTP DA %' }]}
-          meta={[ // Now an array of meta objects for multiple reference lines
-            { value: 17.4, stroke: '#ffc658', label: 'Meta: 17.4%' },
-            { value: 7, stroke: '#FF0000', label: 'P4P: 7%' } // Adding the 5% line
-        ]}
+          meta={[ // Two meta lines for LTP DA %
+            { value: 17.4, stroke: '#00C49F', label: 'Meta: 17.4%' }, // Original meta
+            { value: 7, stroke: '#FFD700', label: 'P4P: 7%' } // New meta line for LTP DA
+          ]}
           tooltipContent={<CustomTooltip />}
         />
 
         <KPIChart
           data={exltpvdChartData}
-          title="  EX LTP VD % (Últimas 4 Semanas Registradas)"
+          title="  EX LTP VD % ⬇️   "
           dataKeys={[{ dataKey: 'EX LTP VD %', stroke: '#3366FF', name: 'EX LTP VD %' }]}
           meta={{ value: 1.44, stroke: '#FFCC00', label: 'Meta: 1.44%' }}
           tooltipContent={<CustomTooltip />}
-          yAxisDomain={[0, 100]}
+          yAxisDomain={[0, 10]}
         />
 
         <KPIChart
           data={exltpdaChartData}
-          title="  EX LTP DA % (Últimas 4 Semanas Registradas)"
+          title="  EX LTP DA % ⬇️   "
           dataKeys={[{ dataKey: 'EX LPT DA %', stroke: '#CC0066', name: 'EX LTP DA %' }]}
           meta={{ value: 1.50, stroke: '#99FF00', label: 'Meta: 1.50%' }}
           tooltipContent={<CustomTooltip />}
-          yAxisDomain={[0, 100]}
+          yAxisDomain={[0, 10]}
         />
 
+        {/* RRR VD % chart moved here */}
+        <KPIChart
+          data={rrrVdChartData}
+          title="  RRR VD % ⬇️   "
+          dataKeys={[{ dataKey: 'RRR VD %', stroke: '#8A2BE2', name: 'RRR VD %' }]}
+          meta={[ // Two meta lines for RRR VD %
+            { value: 2.8, stroke: '#FFCC00', label: 'Meta: 2.8%' }, // New meta for VD
+            { value: 1.5, stroke: '#008080', label: 'P4P: 1.5%' } // Original meta for VD
+          ]}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 15]}
+        />
+
+        {/* RRR DA % chart moved here */}
+        <KPIChart
+          data={rrrDaChartData}
+          title="  RRR DA % ⬇️   "
+          dataKeys={[{ dataKey: 'RRR DA %', stroke: '#A52A2A', name: 'RRR DA %' }]}
+          meta={[ // Two meta lines for RRR DA %
+            { value: 5, stroke: '#FF4500', label: 'Meta: 5%' }, // New meta for DA
+            { value: 3, stroke: '#FFD700', label: 'P4P: 3%' } // Original meta for DA
+          ]}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 15]}
+        />
+
+        {/* SSR VD chart moved here */}
+        <KPIChart
+          data={ssrVdChartData}
+          title="  SSR VD % ⬇️   "
+          dataKeys={[{ dataKey: 'SSR VD', stroke: '#BA55D3', name: 'SSR VD' }]}
+          meta={{ value: 0.4, stroke: '#FFD700', label: 'Meta: 0.4%' }}
+          tooltipContent={<CustomTooltip />}
+        />
+
+        {/* SSR DA chart moved here */}
+        <KPIChart
+          data={ssrDaChartData}
+          title="  SSR DA % ⬇️   "
+          dataKeys={[{ dataKey: 'SSR DA', stroke: '#FF00FF', name: 'SSR DA' }]}
+          meta={{ value: 1.1, stroke: '#FFA07A', label: 'Meta: 1.1%' }}
+          tooltipContent={<CustomTooltip />}
+        />
+
+        {/* Keeping Eco Repair, FTC Happy Call, PO In Home D+1, 1ST Visit VD, IN HOME D+1 */}
         <KPIChart
           data={ecoRepairVdChartData}
-          title="  ECO REPAIR VD (Últimas 4 Semanas Registradas)"
+          title="  ECO REPAIR VD % ⬆️   "
           dataKeys={[{ dataKey: 'ECO REPAIR VD', stroke: '#4CAF50', name: 'ECO REPAIR VD' }]}
           meta={{ value: 60, stroke: '#FF5722', label: 'Meta: 60%' }}
           tooltipContent={<CustomTooltip />}
@@ -327,7 +374,7 @@ function Dashboard() {
 
         <KPIChart
           data={ftcHappyCallChartData}
-          title="  FTC HAPPY CALL (Últimas 4 Semanas Registradas)"
+          title="  FTC HAPPY CALL % ⬆️   "
           dataKeys={[{ dataKey: 'FTC HAPPY CALL', stroke: '#9C27B0', name: 'FTC HAPPY CALL' }]}
           meta={{ value: 88, stroke: '#FFEB3B', label: 'Meta: 88%' }}
           tooltipContent={<CustomTooltip />}
@@ -336,7 +383,7 @@ function Dashboard() {
 
         <KPIChart
           data={poInHomeD1ChartData}
-          title="  PO IN HOME D+1 (Últimas 4 Semanas Registradas)"
+          title="  PO IN HOME D+1 % ⬆️   "
           dataKeys={[{ dataKey: 'PO IN HOME D+1', stroke: '#3F51B5', name: 'PO IN HOME D+1' }]}
           meta={{ value: 70, stroke: '#FFC107', label: 'Meta: 70%' }}
           tooltipContent={<CustomTooltip />}
@@ -344,47 +391,8 @@ function Dashboard() {
         />
 
         <KPIChart
-          data={vendasStorePlusChartData}
-          title="  VENDAS STORE+ (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'VENDAS STORE+', stroke: '#00BCD4', name: 'VENDAS STORE+' }]}
-          tooltipContent={<CustomTooltip />}
-        />
-
-        <KPIChart
-          data={treinamentosChartData}
-          title="  Treinamentos (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'Treinamentos', stroke: '#FF5722', name: 'Treinamentos' }]}
-          tooltipContent={<CustomTooltip />}
-        />
-
-        <KPIChart
-          data={orcamentoChartData}
-          title="  Orçamento (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'Orçamento', stroke: '#607D8B', name: 'Orçamento' }]}
-          tooltipContent={<CustomTooltip />}
-        />
-
-        <KPIChart
-          data={ftcVdChartData}
-          title="  FTC VD (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'FTC VD', stroke: '#6633FF', name: 'FTC VD' }]}
-          meta={{ value: 89, stroke: '#FF9900', label: 'Meta: 89%' }}
-          tooltipContent={<CustomTooltip />}
-          yAxisDomain={[0, 100]}
-        />
-
-        <KPIChart
-          data={ftcDaChartData}
-          title="  FTC DA (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'FTC DA', stroke: '#FF66B2', name: 'FTC DA' }]}
-          meta={{ value: 84, stroke: '#00FFFF', label: 'Meta: 84%' }}
-          tooltipContent={<CustomTooltip />}
-          yAxisDomain={[0, 100]}
-        />
-
-        <KPIChart
           data={firstVisitVdChartData}
-          title="  1ST VISIT VD (Últimas 4 Semanas Registradas)"
+          title="  1ST VISIT VD % ⬆️   "
           dataKeys={[{ dataKey: '1ST VISIT VD', stroke: '#FFBB28', name: '1ST VISIT VD' }]}
           meta={{ value: 20, stroke: '#FF0000', label: 'Meta: 20%' }}
           tooltipContent={<CustomTooltip />}
@@ -393,34 +401,16 @@ function Dashboard() {
 
         <KPIChart
           data={inHomeD1ChartData}
-          title="  IN HOME D+1 (Últimas 4 Semanas Registradas)"
+          title="  IN HOME D+1 % ⬆️   "
           dataKeys={[{ dataKey: 'IN HOME D+1', stroke: '#00C49F', name: 'IN HOME D+1' }]}
           meta={{ value: 20, stroke: '#FF4081', label: 'Meta: 20%' }}
           tooltipContent={<CustomTooltip />}
-          yAxisDomain={[0, 100]}
-        />
-
-        <KPIChart
-          data={rrrVdChartData}
-          title="  RRR VD % (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'RRR VD %', stroke: '#8A2BE2', name: 'RRR VD %' }]}
-          meta={{ value: 1.5, stroke: '#008080', label: 'Meta: 1.5%' }}
-          tooltipContent={<CustomTooltip />}
-          yAxisDomain={[0, 100]}
-        />
-
-        <KPIChart
-          data={rrrDaChartData}
-          title="  RRR DA % (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'RRR DA %', stroke: '#A52A2A', name: 'RRR DA %' }]}
-          meta={{ value: 3, stroke: '#FFD700', label: 'Meta: 3%' }}
-          tooltipContent={<CustomTooltip />}
-          yAxisDomain={[0, 100]}
+          yAxisDomain={[0, 50]}
         />
 
         <KPIChart
           data={rnpsVdChartData}
-          title="  R-NPS VD (Últimas 4 Semanas Registradas)"
+          title="  R-NPS VD % ⬆️   "
           dataKeys={[{ dataKey: 'R-NPS VD', stroke: '#4682B4', name: 'R-NPS VD' }]}
           meta={{ value: 80, stroke: '#9ACD32', label: 'Meta: 80%' }}
           tooltipContent={<CustomTooltip />}
@@ -429,27 +419,11 @@ function Dashboard() {
 
         <KPIChart
           data={rnpsDaChartData}
-          title="  R-NPS DA (Últimas 4 Semanas Registradas)"
+          title="  R-NPS DA % ⬆️   "
           dataKeys={[{ dataKey: 'R-NPS DA', stroke: '#FF4500', name: 'R-NPS DA' }]}
           meta={{ value: 78, stroke: '#ADFF2F', label: 'Meta: 78%' }}
           tooltipContent={<CustomTooltip />}
           yAxisDomain={[0, 100]}
-        />
-
-        <KPIChart
-          data={ssrVdChartData}
-          title="  SSR VD (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'SSR VD', stroke: '#BA55D3', name: 'SSR VD' }]}
-          meta={{ value: 0.4, stroke: '#800080', label: 'Meta: 0.4%' }}
-          tooltipContent={<CustomTooltip />}
-        />
-
-        <KPIChart
-          data={ssrDaChartData}
-          title="  SSR DA (Últimas 4 Semanas Registradas)"
-          dataKeys={[{ dataKey: 'SSR DA', stroke: '#FF00FF', name: 'SSR DA' }]}
-          meta={{ value: 1.1, stroke: '#FFA07A', label: 'Meta: 1.1%' }}
-          tooltipContent={<CustomTooltip />}
         />
       </div>
 
@@ -469,15 +443,17 @@ function Dashboard() {
           <thead>
             <tr style={{ background: '#333' }}>
               <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Semana</th>
-              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Orçamento</th>
-              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Treinamentos</th>
-              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Vendas Store+</th>
+              {/* Restored Orçamento, Treinamentos, Vendas Store+ headers */}
+              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Orçamento 💲</th>
+              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Treinamentos % </th>
+              <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Vendas Store+ </th>
             </tr>
           </thead>
           <tbody>
             {kpiData.map((dataPoint, index) => (
               <tr key={dataPoint.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.name}</td>
+                {/* Restored Orçamento, Treinamentos, Vendas Store+ data cells */}
                 <td style={{ padding: '10px', border: '1px solid #555' }}>
                   {dataPoint['Orçamento'] || 'N/A'}
                 </td>
