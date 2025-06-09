@@ -177,12 +177,12 @@ function Dashboard() {
 
         // Listener for KPIs (last 4 weeks)
         const kpisCollectionRef = collection(db, 'kpis');
-        const q = query(kpisCollectionRef, orderBy('timestamp', 'desc'), limit(4));
+        const q = query(kpisCollectionRef, orderBy('timestamp', 'desc'), limit(4)); // Still order by timestamp desc for fetching the most recent 4 entries
 
         const unsubscribeKpis = onSnapshot(q, (snapshot) => {
           const fetchedKpis = snapshot.docs.map(doc => ({
             name: `Semana ${doc.data().week}`,
-            week: doc.data().week, // Ensure week number is available for scoring
+            week: doc.data().week, // Ensure week number is available for sorting later
             ...doc.data(),
           }));
           setKpiData(fetchedKpis);
@@ -264,8 +264,11 @@ function Dashboard() {
   };
 
   const weeklyScores = useMemo(() => {
-    return kpiData.map(dataPoint => ({
+    // Sort kpiData by week number in descending order
+    const sortedKpiData = [...kpiData].sort((a, b) => b.week - a.week);
+    return sortedKpiData.map(dataPoint => ({
       name: dataPoint.name,
+      week: dataPoint.week, // Keep week for sorting if needed elsewhere
       ...calculateWeeklyMetrics(dataPoint), // Spread the returned object
     }));
   }, [kpiData]);
@@ -284,6 +287,7 @@ function Dashboard() {
     return 0; // Default case
   };
 
+  // Now, lastWeekScore will reliably be the score from the highest week number
   const lastWeekScore = weeklyScores.length > 0 ? weeklyScores[0].finalScore : 0;
   const lastWeekCommission = calculateCommission(lastWeekScore);
 
@@ -579,7 +583,7 @@ function Dashboard() {
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.score}</td>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.accelerators}</td>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.detractors}</td>
-                <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.finalScore.toFixed(1)}</td> {/* Alterado aqui */}
+                <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.finalScore.toFixed(1)}</td>
               </tr>
             ))}
           </tbody>
@@ -588,9 +592,9 @@ function Dashboard() {
 
       {/* New H1 for last week's final score and commission */}
       {weeklyScores.length > 0 && (
-        <h1 style={{ color: '#9e9e9e;', marginTop: '30px', marginBottom: '20px' }}>
-          Pontuação Final da Última Semana: {lastWeekScore.toFixed(1)} <br />
-          Comissionamento: R$ {lastWeekCommission.toFixed(2)}
+        <h1 style={{ color: '#9e9e9e', marginTop: '30px', marginBottom: '20px' }}>
+          Comissionamento baseado na última semana:
+          R$ {lastWeekCommission.toFixed(2)}
         </h1>
       )}
     </div>
