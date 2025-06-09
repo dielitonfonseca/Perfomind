@@ -1,30 +1,96 @@
-import React, { useState, useEffect } from 'react';
+// src/components/Dashboard.js
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, doc, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label } from 'recharts';
 
+// Reusable Chart Component
+const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [0, 'auto'] }) => {
+  if (!data || data.length === 0) {
+    return <p className="no-data-message">Nenhum dado de "{title}" encontrado para as últimas 4 semanas.</p>;
+  }
+
+  return (
+    <div className="kpi-chart-container">
+      <h3>{title} 📈</h3>
+      <div style={{ width: '100%', height: 300 }}> {/* Largura e altura para ResponsiveContainer */}
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={data}
+            margin={{ top: 5, right: 50, left: 20, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+            <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
+            <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={yAxisDomain} />
+            <Tooltip content={tooltipContent} />
+            <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
+            {dataKeys.map((key, index) => (
+              <Line
+                key={key.dataKey}
+                type="monotone"
+                dataKey={key.dataKey}
+                stroke={key.stroke}
+                activeDot={{ r: 8 }}
+                name={key.name}
+              />
+            ))}
+            {meta && (
+              <ReferenceLine y={meta.value} stroke={meta.stroke} strokeDasharray="3 3">
+                <Label
+                  value={meta.label}
+                  position="right"
+                  fill={meta.stroke}
+                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
+                />
+              </ReferenceLine>
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+// Custom Tooltip Component (more flexible)
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const dataPoint = payload[0].payload;
+    return (
+      <div className="custom-tooltip">
+        <p className="label">{label}</p>
+        {payload.map((entry, index) => {
+          const { name, value } = entry;
+          let displayValue = value;
+
+          if (name.includes('%') || name.includes('FTC') || name.includes('NPS') || name.includes('VISIT') || name.includes('IN HOME') || name.includes('REPAIR')) {
+            displayValue = `${value}%`;
+          }
+
+          if (name.includes('LTP VD %') && dataPoint['LTP VD QTD'] !== undefined) {
+            displayValue += ` (QTD: ${dataPoint['LTP VD QTD']})`;
+          } else if (name.includes('LTP DA %') && dataPoint['LTP DA QTD'] !== undefined) {
+            displayValue += ` (QTD: ${dataPoint['LTP DA QTD']})`;
+          } else if (name.includes('EX LTP VD %') && dataPoint['EX LTP VD QTD'] !== undefined) {
+            displayValue += ` (QTD: ${dataPoint['EX LTP VD QTD']})`;
+          } else if (name.includes('EX LPT DA %') && dataPoint['EX LRP DA QTD'] !== undefined) {
+            displayValue += ` (QTD: ${dataPoint['EX LRP DA QTD']})`;
+          } else if (name.includes('RRR VD %') && dataPoint['RRR VD QTD'] !== undefined) {
+            displayValue += ` (QTD: ${dataPoint['RRR VD QTD']})`;
+          } else if (name.includes('RRR DA %') && dataPoint['RRR DA QTD'] !== undefined) {
+            displayValue += ` (QTD: ${dataPoint['RRR DA QTD']})`;
+          }
+
+          return <p key={`item-${index}`}>{`${name}: ${displayValue}`}</p>;
+        })}
+      </div>
+    );
+  }
+  return null;
+};
+
 function Dashboard() {
-  const [rankedData, setRankedData] = useState([]);
-  const [ltpvdData, setLtpvdData] = useState([]);
-  const [ltpdaData, setLtpdaData] = useState([]);
-  const [exltpvdData, setExltpvdData] = useState([]);
-  const [exltpdaData, setExltpdaData] = useState([]);
-  const [ftcVdData, setFtcVdData] = useState([]);     
-  const [ftcDaData, setFtcDaData] = useState([]);
-  const [ecoRepairVdData, setEcoRepairVdData] = useState([]);
-  const [ftcHappyCallData, setFtcHappyCallData] = useState([]);
-  const [poInHomeD1Data, setPoInHomeD1Data] = useState([]);
-  const [vendasStorePlusData, setVendasStorePlusData] = useState([]);
-  const [treinamentosData, setTreinamentosData] = useState([]);
-  const [orcamentoData, setOrcamentoData] = useState([]);
-  const [firstVisitVdData, setFirstVisitVdData] = useState([]);
-  const [inHomeD1Data, setInHomeD1Data] = useState([]);
-  const [rrrVdData, setRrrVdData] = useState([]);
-  const [rrrDaData, setRrrDaData] = useState([]);
-  const [rnpsVdData, setRnpsVdData] = useState([]);
-  const [rnpsDaData, setRnpsDaData] = useState([]);
-  const [ssrVdData, setSsrVdData] = useState([]);
-  const [ssrDaData, setSsrDaData] = useState([]);
+  const [technicianRanking, setTechnicianRanking] = useState([]);
+  const [kpiData, setKpiData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -36,14 +102,13 @@ function Dashboard() {
 
     const setupRealtimeListeners = async () => {
       try {
-        // --- Lógica para o Ranking de Técnicos (já existente) ---
+        // Listener for Technician Ranking
         const tecnicoCollectionRef = collection(db, 'ordensDeServico');
-
         const unsubscribeTecnicos = onSnapshot(tecnicoCollectionRef, async (tecnicoSnapshot) => {
           const currentTechnicianStats = {};
 
           if (tecnicoSnapshot.empty) {
-            setRankedData([]);
+            setTechnicianRanking([]);
             return;
           }
 
@@ -86,150 +151,24 @@ function Dashboard() {
             assurant: currentTechnicianStats[tecnico].assurant,
           })).sort((a, b) => b.total - a.total);
 
-          setRankedData(sortedTechnicians);
+          setTechnicianRanking(sortedTechnicians);
         }, (err) => {
           console.error("Erro no listener de técnicos:", err);
-          setError("Erro ao carregar dados em tempo real. Verifique as permissões do Firebase.");
-          setLoading(false);
+          setError("Erro ao carregar ranking de técnicos. Verifique as permissões do Firebase.");
         });
 
         unsubscribes.push(unsubscribeTecnicos);
 
-        // --- Lógica para buscar os KPIs das últimas 4 semanas para todos os gráficos e tabela ---
+        // Listener for KPIs (last 4 weeks)
         const kpisCollectionRef = collection(db, 'kpis');
         const q = query(kpisCollectionRef, orderBy('timestamp', 'desc'), limit(4));
 
         const unsubscribeKpis = onSnapshot(q, (snapshot) => {
-          const fetchedLtpvdData = [];
-          const fetchedLtpdaData = [];
-          const fetchedExLtpvdData = [];
-          const fetchedExLtpdaData = [];
-          const fetchedFtcHappyCallData = [];
-          const fetchedFtcVdData = [];   
-          const fetchedFtcDaData = [];
-          const fetchedEcoRepairVdData = [];
-          const fetchedVendasStorePlusData = [];
-          const fetchedPoInHomeD1Data = [];
-          const fetchedTreinamentosData = [];
-          const fetchedOrcamentoData = [];
-          const fetchedFirstVisitVdData = [];
-          const fetchedInHomeD1Data = [];
-          const fetchedRrrVdData = [];
-          const fetchedRrrDaData = [];
-          const fetchedRnpsVdData = [];
-          const fetchedRnpsDaData = [];
-          const fetchedSsrVdData = [];
-          const fetchedSsrDaData = [];
-
-          snapshot.docs.forEach(doc => {
-            const data = doc.data();
-            fetchedLtpvdData.push({
-              name: `Semana ${data.week}`,
-              'LTP VD %': parseFloat(data['LTP VD %']),
-              'LTP VD QTD': parseFloat(data['LTP VD QTD']),
-            });
-            fetchedLtpdaData.push({
-                name: `Semana ${data.week}`,
-                'LTP DA %': parseFloat(data['LTP DA %']),
-                'LTP DA QTD': parseFloat(data['LTP DA QTD']),
-            });
-            fetchedExLtpvdData.push({
-                name: `Semana ${data.week}`,
-                'EX LTP VD %': parseFloat(data['EX LTP VD %']),
-                'EX LTP VD QTD': parseFloat(data['EX LTP VD QTD']),
-            });
-            fetchedExLtpdaData.push({
-                name: `Semana ${data.week}`,
-                'EX LPT DA %': parseFloat(data['EX LPT DA %']),
-                'EX LRP DA QTD': parseFloat(data['EX LRP DA QTD']),
-            });
-            fetchedFtcHappyCallData.push({
-                name: `Semana ${data.week}`,
-                'FTC HAPPY CALL': parseFloat(data['FTC HAPPY CALL']),
-            });
-            fetchedFtcVdData.push({
-                name: `Semana ${data.week}`,
-                'FTC VD': parseFloat(data['FTC VD']),
-            });
-            fetchedFtcDaData.push({
-                name: `Semana ${data.week}`,
-                'FTC DA': parseFloat(data['FTC DA']),
-            });
-            fetchedEcoRepairVdData.push({
-                name: `Semana ${data.week}`,
-                'ECO REPAIR VD': parseFloat(data['ECO REPAIR VD']),
-            });
-            fetchedVendasStorePlusData.push({
-                name: `Semana ${data.week}`,
-                'VENDAS STORE+': parseFloat(data['VENDAS STORE+']),
-            });
-            fetchedPoInHomeD1Data.push({
-                name: `Semana ${data.week}`,
-                'PO IN HOME D+1': parseFloat(data['PO IN HOME D+1']),
-            });
-            fetchedTreinamentosData.push({
-                name: `Semana ${data.week}`,
-                'Treinamentos': parseFloat(data['Treinamentos']),
-            });
-            fetchedOrcamentoData.push({
-                name: `Semana ${data.week}`,
-                'Orçamento': parseFloat(data['Orçamento']),
-            });
-            fetchedFirstVisitVdData.push({
-                name: `Semana ${data.week}`,
-                '1ST VISIT VD': parseFloat(data['1ST VISIT VD']),
-            });
-            fetchedInHomeD1Data.push({
-                name: `Semana ${data.week}`,
-                'IN HOME D+1': parseFloat(data['IN HOME D+1']),
-            });
-            fetchedRrrVdData.push({
-                name: `Semana ${data.week}`,
-                'RRR VD %': parseFloat(data['RRR VD %']),
-                'RRR VD QTD': parseFloat(data['RRR VD QTD']),
-            });
-            fetchedRrrDaData.push({
-                name: `Semana ${data.week}`,
-                'RRR DA %': parseFloat(data['RRR DA %']),
-                'RRR DA QTD': parseFloat(data['RRR DA QTD']),
-            });
-            fetchedRnpsVdData.push({
-                name: `Semana ${data.week}`,
-                'R-NPS VD': parseFloat(data['R-NPS VD']),
-            });
-            fetchedRnpsDaData.push({
-                name: `Semana ${data.week}`,
-                'R-NPS DA': parseFloat(data['R-NPS DA']),
-            });
-            fetchedSsrVdData.push({
-                name: `Semana ${data.week}`,
-                'SSR VD': parseFloat(data['SSR VD']),
-            });
-            fetchedSsrDaData.push({
-                name: `Semana ${data.week}`,
-                'SSR DA': parseFloat(data['SSR DA']),
-            });
-          });
-          setLtpvdData(fetchedLtpvdData);
-          setLtpdaData(fetchedLtpdaData);
-          setExltpvdData(fetchedExLtpvdData);
-          setExltpdaData(fetchedExLtpdaData);
-          setFtcHappyCallData(fetchedFtcHappyCallData);
-          setFtcVdData(fetchedFtcVdData);
-          setFtcDaData(fetchedFtcDaData);
-          setEcoRepairVdData(fetchedEcoRepairVdData);
-          setVendasStorePlusData(fetchedVendasStorePlusData);
-          setPoInHomeD1Data(fetchedPoInHomeD1Data);
-          setTreinamentosData(fetchedTreinamentosData);
-          setOrcamentoData(fetchedOrcamentoData);
-          setFirstVisitVdData(fetchedFirstVisitVdData);
-          setInHomeD1Data(fetchedInHomeD1Data);
-          setRrrVdData(fetchedRrrVdData);
-          setRrrDaData(fetchedRrrDaData);
-          setRnpsVdData(fetchedRnpsVdData);
-          setRnpsDaData(fetchedRnpsDaData);
-          setSsrVdData(fetchedSsrVdData);
-          setSsrDaData(fetchedSsrDaData);
+          const fetchedKpis = snapshot.docs.map(doc => ({
+            name: `Semana ${doc.data().week}`,
+            ...doc.data(),
+          }));
+          setKpiData(fetchedKpis);
           setLoading(false);
         }, (err) => {
           console.error("Erro no listener de KPIs:", err);
@@ -254,84 +193,41 @@ function Dashboard() {
     };
   }, []);
 
+  // Memoized data for each KPI chart to prevent unnecessary re-renders
+  const ltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [kpiData]);
+  const ltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [kpiData]);
+  const exltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [kpiData]);
+  const exltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LPT DA %': parseFloat(d['EX LPT DA %']), 'EX LRP DA QTD': parseFloat(d['EX LRP DA QTD']) })), [kpiData]);
+  const ftcHappyCallChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC HAPPY CALL': parseFloat(d['FTC HAPPY CALL']) })), [kpiData]);
+  const ftcVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC VD': parseFloat(d['FTC VD']) })), [kpiData]);
+  const ftcDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC DA': parseFloat(d['FTC DA']) })), [kpiData]);
+  const ecoRepairVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'ECO REPAIR VD': parseFloat(d['ECO REPAIR VD']) })), [kpiData]);
+  const vendasStorePlusChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'VENDAS STORE+': parseFloat(d['VENDAS STORE+']) })), [kpiData]);
+  const poInHomeD1ChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'PO IN HOME D+1': parseFloat(d['PO IN HOME D+1']) })), [kpiData]);
+  const treinamentosChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Treinamentos': parseFloat(d['Treinamentos']) })), [kpiData]);
+  const orcamentoChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Orçamento': parseFloat(d['Orçamento']) })), [kpiData]);
+  const firstVisitVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, '1ST VISIT VD': parseFloat(d['1ST VISIT VD']) })), [kpiData]);
+  const inHomeD1ChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'IN HOME D+1': parseFloat(d['IN HOME D+1']) })), [kpiData]);
+  const rrrVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'RRR VD %': parseFloat(d['RRR VD %']), 'RRR VD QTD': parseFloat(d['RRR VD QTD']) })), [kpiData]);
+  const rrrDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'RRR DA %': parseFloat(d['RRR DA %']), 'RRR DA QTD': parseFloat(d['RRR DA QTD']) })), [kpiData]);
+  const rnpsVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'R-NPS VD': parseFloat(d['R-NPS VD']) })), [kpiData]);
+  const rnpsDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'R-NPS DA': parseFloat(d['R-NPS DA']) })), [kpiData]);
+  const ssrVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR VD': parseFloat(d['SSR VD']) })), [kpiData]);
+  const ssrDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR DA': parseFloat(d['SSR DA']) })), [kpiData]);
+
   if (loading) {
-    return <div style={{ textAlign: 'center', color: '#e0e0e0' }}>Carregando dados do Firebase...</div>;
+    return <div className="loading-message">Carregando dados do Firebase...</div>;
   }
 
   if (error) {
-    return <div style={{ textAlign: 'center', color: 'red' }}>{error}</div>;
+    return <div className="error-message">{error}</div>;
   }
 
-  // Componente de Tooltip customizado para exibir a QTD (para gráficos LTP e EX LTP, RRR)
-  const CustomLTPTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const dataPoint = payload[0].payload;
-      const dataKeyName = payload[0].name;
-      const dataKeyValue = payload[0].value;
-      
-      let qtdLabel = '';
-      if (dataKeyName === 'LTP VD %' && dataPoint['LTP VD QTD'] !== undefined) {
-        qtdLabel = `LTP VD QTD: ${dataPoint['LTP VD QTD']}`;
-      } else if (dataKeyName === 'LTP DA %' && dataPoint['LTP DA QTD'] !== undefined) {
-        qtdLabel = `LTP DA QTD: ${dataPoint['LTP DA QTD']}`;
-      } else if (dataKeyName === 'EX LTP VD %' && dataPoint['EX LTP VD QTD'] !== undefined) {
-        qtdLabel = `EX LTP VD QTD: ${dataPoint['EX LTP VD QTD']}`;
-      } else if (dataKeyName === 'EX LPT DA %' && dataPoint['EX LRP DA QTD'] !== undefined) {
-        qtdLabel = `EX LRP DA QTD: ${dataPoint['EX LRP DA QTD']}`;
-      } else if (dataKeyName === 'RRR VD %' && dataPoint['RRR VD QTD'] !== undefined) {
-        qtdLabel = `RRR VD QTD: ${dataPoint['RRR VD QTD']}`;
-      } else if (dataKeyName === 'RRR DA %' && dataPoint['RRR DA QTD'] !== undefined) {
-        qtdLabel = `RRR DA QTD: ${dataPoint['RRR DA QTD']}`;
-      }
-
-      return (
-        <div className="custom-tooltip" style={{
-          backgroundColor: '#333',
-          border: '1px solid #555',
-          borderRadius: '5px',
-          padding: '10px',
-          color: '#e0e0e0'
-        }}>
-          <p className="label" style={{ color: '#007BFF', margin: 0, marginBottom: '5px' }}>{label}</p>
-          <p style={{ margin: 0 }}>{`${dataKeyName}: ${dataKeyValue}%`}</p>
-          {qtdLabel && <p style={{ margin: 0 }}>{qtdLabel}</p>}
-        </div>
-      );
-    }
-
-    return null;
-  };
-
-  // Componente de Tooltip customizado para gráficos apenas de porcentagem/valor (FTC, 1ST VISIT VD, IN HOME D+1, R-NPS, SSR, Eco Repair, Vendas Store+, PO IH D+1, Treinamentos, Orçamento)
-  const CustomPercentTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const dataKeyName = payload[0].name;
-      const dataKeyValue = payload[0].value;
-      // Adiciona sufixo % se for uma porcentagem, caso contrário, exibe o valor puro
-      const displayValue = dataKeyName.includes('%') || dataKeyName.includes('FTC') || dataKeyName.includes('NPS') ? `${dataKeyValue}%` : dataKeyValue;
-
-      return (
-        <div className="custom-tooltip" style={{
-          backgroundColor: '#333',
-          border: '1px solid #555',
-          borderRadius: '5px',
-          padding: '10px',
-          color: '#e0e0e0'
-        }}>
-          <p className="label" style={{ color: '#007BFF', margin: 0, marginBottom: '5px' }}>{label}</p>
-          <p style={{ margin: 0 }}>{`${dataKeyName}: ${displayValue}`}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-
   return (
-    <div className="output" style={{ marginTop: '20px', textAlign: 'center' }}>
+    <div className="output">
       <h3>Ranking de Ordens de Serviço por Técnico ✅</h3>
-      {rankedData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhuma ordem de serviço encontrada para o ranking.</p>
+      {technicianRanking.length === 0 ? (
+        <p className="no-data-message">Nenhuma ordem de serviço encontrada para o ranking.</p>
       ) : (
         <>
           <table style={{
@@ -350,7 +246,7 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {rankedData.map((tecnico, index) => (
+              {technicianRanking.map((tecnico, index) => (
                 <tr key={tecnico.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
                   <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.name}</td>
                   <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.total}</td>
@@ -361,19 +257,12 @@ function Dashboard() {
             </tbody>
           </table>
 
-          {/* Gráfico de Barras */}
-          <h3 style={{ marginTop: '40px' }}>Gráfico de Ordens de Serviço por Técnico 📊</h3>
-          <div style={{ width: '100%', height: 400, marginTop: '20px' }}>
+          <h3 className="chart-title">Gráfico de Ordens de Serviço por Técnico 📊</h3>
+          <div className="technician-chart-container">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={rankedData}
-                margin={{
-                  top: 5,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
-                }}
-                style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
+                data={technicianRanking}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                 <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
@@ -394,706 +283,185 @@ function Dashboard() {
         </>
       )}
 
-      {/* Gráfico de Linha para LTP VD % */}
-      <h3 style={{ marginTop: '40px' }}>KPI: LTP VD % (Últimas 4 Semanas Registradas) 📈</h3>
-      {ltpvdData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "LTP VD %" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={ltpvdData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 'auto']} />
-              <Tooltip content={<CustomLTPTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="LTP VD %" stroke="#8884d8" activeDot={{ r: 8 }} name="LTP VD %" />
-              <ReferenceLine y={12.8} stroke="#ffc658" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 12.8%"
-                  position="right"
-                  fill="#ffc658"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {/* Grid para os gráficos de KPI */}
+      <h2>KPIs de Desempenho 🚀</h2>
+      <div className="kpi-grid">
+        <KPIChart
+          data={ltpvdChartData}
+          title="KPI: LTP VD % (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'LTP VD %', stroke: '#8884d8', name: 'LTP VD %' }]}
+          meta={{ value: 12.8, stroke: '#ffc658', label: 'Meta: 12.8%' }}
+          tooltipContent={<CustomTooltip />}
+        />
 
-      {/* Novo Gráfico de Linha para LTP DA % */}
-      <h3 style={{ marginTop: '40px' }}>KPI: LTP DA % (Últimas 4 Semanas Registradas) 📈</h3>
-      {ltpdaData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "LTP DA %" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={ltpdaData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 'auto']} />
-              <Tooltip content={<CustomLTPTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="LTP DA %" stroke="#ff7300" activeDot={{ r: 8 }} name="LTP DA %" />
-              <ReferenceLine y={17.4} stroke="#00C49F" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 17.4%"
-                  position="right"
-                  fill="#00C49F"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={ltpdaChartData}
+          title="KPI: LTP DA % (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'LTP DA %', stroke: '#ff7300', name: 'LTP DA %' }]}
+          meta={{ value: 17.4, stroke: '#00C49F', label: 'Meta: 17.4%' }}
+          tooltipContent={<CustomTooltip />}
+        />
 
-      {/* Novo Gráfico de Linha para EX LTP VD % */}
-      <h3 style={{ marginTop: '40px' }}>KPI: EX LTP VD % (Últimas 4 Semanas Registradas) 📈</h3>
-      {exltpvdData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "EX LTP VD %" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={exltpvdData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomLTPTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="EX LTP VD %" stroke="#3366FF" activeDot={{ r: 8 }} name="EX LTP VD %" />
-              <ReferenceLine y={1.44} stroke="#FFCC00" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 1.44%"
-                  position="right"
-                  fill="#FFCC00"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={exltpvdChartData}
+          title="KPI: EX LTP VD % (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'EX LTP VD %', stroke: '#3366FF', name: 'EX LTP VD %' }]}
+          meta={{ value: 1.44, stroke: '#FFCC00', label: 'Meta: 1.44%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para EX LTP DA % */}
-      <h3 style={{ marginTop: '40px' }}>KPI: EX LTP DA % (Últimas 4 Semanas Registradas) 📈</h3>
-      {exltpdaData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "EX LTP DA %" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={exltpdaData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomLTPTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="EX LPT DA %" stroke="#CC0066" activeDot={{ r: 8 }} name="EX LTP DA %" />
-              <ReferenceLine y={1.50} stroke="#99FF00" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 1.50%"
-                  position="right"
-                  fill="#99FF00"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={exltpdaChartData}
+          title="KPI: EX LTP DA % (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'EX LPT DA %', stroke: '#CC0066', name: 'EX LTP DA %' }]}
+          meta={{ value: 1.50, stroke: '#99FF00', label: 'Meta: 1.50%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para ECO REPAIR VD */}
-      <h3 style={{ marginTop: '40px' }}>KPI: ECO REPAIR VD (Últimas 4 Semanas Registradas) 📈</h3>
-      {ecoRepairVdData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "ECO REPAIR VD" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={ecoRepairVdData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} /> {/* Assumindo que é uma porcentagem */}
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="ECO REPAIR VD" stroke="#4CAF50" activeDot={{ r: 8 }} name="ECO REPAIR VD" />
-              <ReferenceLine y={60} stroke="#FF5722" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 60%"
-                  position="right"
-                  fill="#FF5722"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={ecoRepairVdChartData}
+          title="KPI: ECO REPAIR VD (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'ECO REPAIR VD', stroke: '#4CAF50', name: 'ECO REPAIR VD' }]}
+          meta={{ value: 60, stroke: '#FF5722', label: 'Meta: 60%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para FTC HAPPY CALL */}
-      <h3 style={{ marginTop: '40px' }}>KPI: FTC HAPPY CALL (Últimas 4 Semanas Registradas) 📈</h3>
-      {ftcHappyCallData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "FTC HAPPY CALL" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={ftcHappyCallData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="FTC HAPPY CALL" stroke="#9C27B0" activeDot={{ r: 8 }} name="FTC HAPPY CALL" />
-              <ReferenceLine y={88} stroke="#FFEB3B" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 88%"
-                  position="right"
-                  fill="#FFEB3B"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={ftcHappyCallChartData}
+          title="KPI: FTC HAPPY CALL (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'FTC HAPPY CALL', stroke: '#9C27B0', name: 'FTC HAPPY CALL' }]}
+          meta={{ value: 88, stroke: '#FFEB3B', label: 'Meta: 88%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para PO IN HOME D+1 */}
-      <h3 style={{ marginTop: '40px' }}>KPI: PO IN HOME D+1 (Últimas 4 Semanas Registradas) 📈</h3>
-      {poInHomeD1Data.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "PO IN HOME D+1" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={poInHomeD1Data}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} /> {/* Assumindo que é uma porcentagem */}
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="PO IN HOME D+1" stroke="#3F51B5" activeDot={{ r: 8 }} name="PO IN HOME D+1" />
-              <ReferenceLine y={70} stroke="#FFC107" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 70%"
-                  position="right"
-                  fill="#FFC107"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={poInHomeD1ChartData}
+          title="KPI: PO IN HOME D+1 (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'PO IN HOME D+1', stroke: '#3F51B5', name: 'PO IN HOME D+1' }]}
+          meta={{ value: 70, stroke: '#FFC107', label: 'Meta: 70%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para VENDAS STORE+ */}
-      <h3 style={{ marginTop: '40px' }}>KPI: VENDAS STORE+ (Últimas 4 Semanas Registradas) 📈</h3>
-      {vendasStorePlusData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "VENDAS STORE+" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={vendasStorePlusData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 'auto']} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="VENDAS STORE+" stroke="#00BCD4" activeDot={{ r: 8 }} name="VENDAS STORE+" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={vendasStorePlusChartData}
+          title="KPI: VENDAS STORE+ (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'VENDAS STORE+', stroke: '#00BCD4', name: 'VENDAS STORE+' }]}
+          tooltipContent={<CustomTooltip />}
+        />
 
-      {/* Novo Gráfico de Linha para TREINAMENTOS */}
-      <h3 style={{ marginTop: '40px' }}>KPI: Treinamentos (Últimas 4 Semanas Registradas) 📈</h3>
-      {treinamentosData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "Treinamentos" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={treinamentosData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 'auto']} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="Treinamentos" stroke="#FF5722" activeDot={{ r: 8 }} name="Treinamentos" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={treinamentosChartData}
+          title="KPI: Treinamentos (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'Treinamentos', stroke: '#FF5722', name: 'Treinamentos' }]}
+          tooltipContent={<CustomTooltip />}
+        />
 
-      {/* Novo Gráfico de Linha para ORÇAMENTO */}
-      <h3 style={{ marginTop: '40px' }}>KPI: Orçamento (Últimas 4 Semanas Registradas) 📈</h3>
-      {orcamentoData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "Orçamento" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={orcamentoData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 'auto']} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="Orçamento" stroke="#607D8B" activeDot={{ r: 8 }} name="Orçamento" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={orcamentoChartData}
+          title="KPI: Orçamento (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'Orçamento', stroke: '#607D8B', name: 'Orçamento' }]}
+          tooltipContent={<CustomTooltip />}
+        />
 
-      {/* Gráfico de Linha para FTC VD (Reintroduzido e populado corretamente) */}
-      <h3 style={{ marginTop: '40px' }}>KPI: FTC VD (Últimas 4 Semanas Registradas) 📈</h3>
-      {ftcVdData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "FTC VD" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={ftcVdData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="FTC VD" stroke="#6633FF" activeDot={{ r: 8 }} name="FTC VD" />
-              <ReferenceLine y={89} stroke="#FF9900" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 89%"
-                  position="right"
-                  fill="#FF9900"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={ftcVdChartData}
+          title="KPI: FTC VD (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'FTC VD', stroke: '#6633FF', name: 'FTC VD' }]}
+          meta={{ value: 89, stroke: '#FF9900', label: 'Meta: 89%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Gráfico de Linha para FTC DA (Reintroduzido e populado corretamente) */}
-      <h3 style={{ marginTop: '40px' }}>KPI: FTC DA (Últimas 4 Semanas Registradas) 📈</h3>
-      {ftcDaData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "FTC DA" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={ftcDaData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="FTC DA" stroke="#FF66B2" activeDot={{ r: 8 }} name="FTC DA" />
-              <ReferenceLine y={84} stroke="#00FFFF" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 84%"
-                  position="right"
-                  fill="#00FFFF"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={ftcDaChartData}
+          title="KPI: FTC DA (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'FTC DA', stroke: '#FF66B2', name: 'FTC DA' }]}
+          meta={{ value: 84, stroke: '#00FFFF', label: 'Meta: 84%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Gráfico de Linha para 1ST VISIT VD */}
-      <h3 style={{ marginTop: '40px' }}>KPI: 1ST VISIT VD (Últimas 4 Semanas Registradas) 📈</h3>
-      {firstVisitVdData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "1ST VISIT VD" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={firstVisitVdData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="1ST VISIT VD" stroke="#FFBB28" activeDot={{ r: 8 }} name="1ST VISIT VD" />
-              <ReferenceLine y={20} stroke="#FF0000" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 20%"
-                  position="right"
-                  fill="#FF0000"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={firstVisitVdChartData}
+          title="KPI: 1ST VISIT VD (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: '1ST VISIT VD', stroke: '#FFBB28', name: '1ST VISIT VD' }]}
+          meta={{ value: 20, stroke: '#FF0000', label: 'Meta: 20%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Gráfico de Linha para IN HOME D+1 */}
-      <h3 style={{ marginTop: '40px' }}>KPI: IN HOME D+1 (Últimas 4 Semanas Registradas) 📈</h3>
-      {inHomeD1Data.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "IN HOME D+1" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={inHomeD1Data}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="IN HOME D+1" stroke="#00C49F" activeDot={{ r: 8 }} name="IN HOME D+1" />
-              <ReferenceLine y={20} stroke="#FF4081" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 20%"
-                  position="right"
-                  fill="#FF4081"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={inHomeD1ChartData}
+          title="KPI: IN HOME D+1 (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'IN HOME D+1', stroke: '#00C49F', name: 'IN HOME D+1' }]}
+          meta={{ value: 20, stroke: '#FF4081', label: 'Meta: 20%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para RRR VD % */}
-      <h3 style={{ marginTop: '40px' }}>KPI: RRR VD % (Últimas 4 Semanas Registradas) 📈</h3>
-      {rrrVdData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "RRR VD %" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={rrrVdData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomLTPTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="RRR VD %" stroke="#8A2BE2" activeDot={{ r: 8 }} name="RRR VD %" />
-              <ReferenceLine y={1.5} stroke="#008080" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 1.5%"
-                  position="right"
-                  fill="#008080"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={rrrVdChartData}
+          title="KPI: RRR VD % (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'RRR VD %', stroke: '#8A2BE2', name: 'RRR VD %' }]}
+          meta={{ value: 1.5, stroke: '#008080', label: 'Meta: 1.5%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para RRR DA % */}
-      <h3 style={{ marginTop: '40px' }}>KPI: RRR DA % (Últimas 4 Semanas Registradas) 📈</h3>
-      {rrrDaData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "RRR DA %" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={rrrDaData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomLTPTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="RRR DA %" stroke="#A52A2A" activeDot={{ r: 8 }} name="RRR DA %" />
-              <ReferenceLine y={3} stroke="#FFD700" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 3%"
-                  position="right"
-                  fill="#FFD700"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={rrrDaChartData}
+          title="KPI: RRR DA % (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'RRR DA %', stroke: '#A52A2A', name: 'RRR DA %' }]}
+          meta={{ value: 3, stroke: '#FFD700', label: 'Meta: 3%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para R-NPS VD */}
-      <h3 style={{ marginTop: '40px' }}>KPI: R-NPS VD (Últimas 4 Semanas Registradas) 📈</h3>
-      {rnpsVdData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "R-NPS VD" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={rnpsVdData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="R-NPS VD" stroke="#4682B4" activeDot={{ r: 8 }} name="R-NPS VD" />
-              <ReferenceLine y={80} stroke="#9ACD32" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 80%"
-                  position="right"
-                  fill="#9ACD32"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={rnpsVdChartData}
+          title="KPI: R-NPS VD (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'R-NPS VD', stroke: '#4682B4', name: 'R-NPS VD' }]}
+          meta={{ value: 80, stroke: '#9ACD32', label: 'Meta: 80%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para R-NPS DA */}
-      <h3 style={{ marginTop: '40px' }}>KPI: R-NPS DA (Últimas 4 Semanas Registradas) 📈</h3>
-      {rnpsDaData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "R-NPS DA" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={rnpsDaData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 100]} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="R-NPS DA" stroke="#FF4500" activeDot={{ r: 8 }} name="R-NPS DA" />
-              <ReferenceLine y={78} stroke="#ADFF2F" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 78%"
-                  position="right"
-                  fill="#ADFF2F"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={rnpsDaChartData}
+          title="KPI: R-NPS DA (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'R-NPS DA', stroke: '#FF4500', name: 'R-NPS DA' }]}
+          meta={{ value: 78, stroke: '#ADFF2F', label: 'Meta: 78%' }}
+          tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 100]}
+        />
 
-      {/* Novo Gráfico de Linha para SSR VD */}
-      <h3 style={{ marginTop: '40px' }}>KPI: SSR VD (Últimas 4 Semanas Registradas) 📈</h3>
-      {ssrVdData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "SSR VD" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={ssrVdData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 'auto']} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="SSR VD" stroke="#BA55D3" activeDot={{ r: 8 }} name="SSR VD" />
-              <ReferenceLine y={0.4} stroke="#800080" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 0.4%"
-                  position="right"
-                  fill="#800080"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={ssrVdChartData}
+          title="KPI: SSR VD (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'SSR VD', stroke: '#BA55D3', name: 'SSR VD' }]}
+          meta={{ value: 0.4, stroke: '#800080', label: 'Meta: 0.4%' }}
+          tooltipContent={<CustomTooltip />}
+        />
 
-      {/* Novo Gráfico de Linha para SSR DA */}
-      <h3 style={{ marginTop: '40px' }}>KPI: SSR DA (Últimas 4 Semanas Registradas) 📈</h3>
-      {ssrDaData.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de "SSR DA" encontrado para as últimas 4 semanas.</p>
-      ) : (
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={ssrDaData}
-              margin={{
-                top: 5,
-                right: 50,
-                left: 20,
-                bottom: 5,
-              }}
-              style={{ backgroundColor: '#2c2f38', borderRadius: '8px' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
-              <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={[0, 'auto']} />
-              <Tooltip content={<CustomPercentTooltip />} />
-              <Legend wrapperStyle={{ color: '#e0e0e0', textAlign: 'center' }} />
-              <Line type="monotone" dataKey="SSR DA" stroke="#FF00FF" activeDot={{ r: 8 }} name="SSR DA" />
-              <ReferenceLine y={1.1} stroke="#FFA07A" strokeDasharray="3 3" >
-                <Label
-                  value="Meta: 1.1%"
-                  position="right"
-                  fill="#FFA07A"
-                  style={{ fontSize: '0.8em', textAnchor: 'start' }}
-                />
-              </ReferenceLine>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        <KPIChart
+          data={ssrDaChartData}
+          title="KPI: SSR DA (Últimas 4 Semanas Registradas)"
+          dataKeys={[{ dataKey: 'SSR DA', stroke: '#FF00FF', name: 'SSR DA' }]}
+          meta={{ value: 1.1, stroke: '#FFA07A', label: 'Meta: 1.1%' }}
+          tooltipContent={<CustomTooltip />}
+        />
+      </div>
 
-      {/* Tabela para Orçamento, Treinamentos, Vendas Store+ */}
-      <h3 style={{ marginTop: '40px' }}>Outras Métricas por Semana ✅</h3>
-      {treinamentosData.length === 0 ? ( // Podemos usar qualquer um dos novos dados para verificar se há semanas
-        <p style={{ textAlign: 'center', color: '#ccc' }}>Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 4 semanas.</p>
+
+      {/* Table for other metrics */}
+      <h3>Outras Métricas por Semana ✅</h3>
+      {kpiData.length === 0 ? (
+        <p className="no-data-message">Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 4 semanas.</p>
       ) : (
         <table style={{
           width: '80%',
@@ -1111,17 +479,17 @@ function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {treinamentosData.map((dataPoint, index) => ( // Usamos a primeira dataPoint, pois todas as arrays devem ter o mesmo Week
+            {kpiData.map((dataPoint, index) => (
               <tr key={dataPoint.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.name}</td>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>
-                  {orcamentoData.find(item => item.name === dataPoint.name)?.['Orçamento'] || 'N/A'}
+                  {dataPoint['Orçamento'] || 'N/A'}
                 </td>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>
                   {dataPoint['Treinamentos'] || 'N/A'}
                 </td>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>
-                  {vendasStorePlusData.find(item => item.name === dataPoint.name)?.['VENDAS STORE+'] || 'N/A'}
+                  {dataPoint['VENDAS STORE+'] || 'N/A'}
                 </td>
               </tr>
             ))}

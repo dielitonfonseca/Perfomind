@@ -248,3 +248,29 @@ textarea:-webkit-autofill {
 .checkbox-container label:active {
     transform: scale(0.97);
 }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Duas colunas de largura igual */
+  gap: 40px; /* Espaço entre os gráficos */
+  padding: 20px; /* Preenchimento em torno do grid */
+  max-width: 1200px; /* Limite a largura máxima do dashboard */
+  margin: 0 auto; /* Centraliza o grid */
+}
+
+.dashboard-grid-item {
+  /* Estilos para cada item do grid (o que contém o gráfico) */
+  background-color: #2c2f38; /* Fundo similar ao do gráfico */
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.dashboard-grid-item h3 {
+  margin-top: 0; /* Remove a margem superior padrão do h3 dentro do grid item */
+  margin-bottom: 20px; /* Adiciona um pouco de margem inferior para separar do gráfico */
+}
