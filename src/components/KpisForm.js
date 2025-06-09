@@ -107,7 +107,7 @@ function KpisForm() {
       setOrcamento('');     // Limpa novo campo
 
     } catch (e) {
-      console.error("Erro ao adicionar documento de KPI: ", e);
+      console.error("Erro ao adicionar documento de   ", e);
       alert('Erro ao salvar dados de KPI no Firebase. Verifique o console para mais detalhes.');
     }
   };

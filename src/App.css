@@ -274,3 +274,7 @@ textarea:-webkit-autofill {
   margin-top: 0; /* Remove a margem superior padrão do h3 dentro do grid item */
   margin-bottom: 20px; /* Adiciona um pouco de margem inferior para separar do gráfico */
 }
+
+.no-data-message{
+    text-align: center;
+}
