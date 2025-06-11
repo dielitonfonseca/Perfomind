@@ -5,14 +5,14 @@ import { collection, onSnapshot, getDocs, query, orderBy, limit } from 'firebase
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label } from 'recharts';
 
 // Reusable Chart Component
-const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [0, 'auto' ] }) => {
+const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [0, 'auto'] }) => {
   if (!data || data.length === 0) {
     return <p className="no-data-message">Nenhum dado de "{title}" encontrado para as últimas 4 semanas.</p>;
   }
 
   return (
     <div className="kpi-chart-container">
-      <h3>{title}    </h3>
+      <h3>{title} </h3>
       <div style={{ width: '100%', height: 300 }}> {/* Largura e altura para ResponsiveContainer */}
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -177,7 +177,7 @@ function Dashboard() {
 
         // Listener for KPIs (last 4 weeks)
         const kpisCollectionRef = collection(db, 'kpis');
-        const q = query(kpisCollectionRef, orderBy('timestamp', 'desc'), limit(4)); // Still order by timestamp desc for fetching the most recent 4 entries
+        const q = query(kpisCollectionRef, orderBy('week', 'asc'), limit(4)); // Order by week ascending
 
         const unsubscribeKpis = onSnapshot(q, (snapshot) => {
           const fetchedKpis = snapshot.docs.map(doc => ({
@@ -185,7 +185,9 @@ function Dashboard() {
             week: doc.data().week, // Ensure week number is available for sorting later
             ...doc.data(),
           }));
-          setKpiData(fetchedKpis);
+          // Sort the fetched KPIs by week number in ascending order
+          const sortedKpis = [...fetchedKpis].sort((a, b) => a.week - b.week);
+          setKpiData(sortedKpis);
           setLoading(false);
         }, (err) => {
           console.error("Erro no listener de KPIs:", err);
@@ -264,12 +266,11 @@ function Dashboard() {
   };
 
   const weeklyScores = useMemo(() => {
-    // Sort kpiData by week number in descending order
-    const sortedKpiData = [...kpiData].sort((a, b) => b.week - a.week);
-    return sortedKpiData.map(dataPoint => ({
+    // kpiData is already sorted by week in the useEffect
+    return kpiData.map(dataPoint => ({
       name: dataPoint.name,
-      week: dataPoint.week, // Keep week for sorting if needed elsewhere
-      ...calculateWeeklyMetrics(dataPoint), // Spread the returned object
+      week: dataPoint.week,
+      ...calculateWeeklyMetrics(dataPoint),
     }));
   }, [kpiData]);
 
@@ -288,7 +289,7 @@ function Dashboard() {
   };
 
   // Now, lastWeekScore will reliably be the score from the highest week number
-  const lastWeekScore = weeklyScores.length > 0 ? weeklyScores[0].finalScore : 0;
+  const lastWeekScore = weeklyScores.length > 0 ? weeklyScores[weeklyScores.length - 1].finalScore : 0; // Get the last element for the latest week
   const lastWeekCommission = calculateCommission(lastWeekScore);
 
 
@@ -297,7 +298,6 @@ function Dashboard() {
   const ltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [kpiData]);
   const exltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [kpiData]);
   const exltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LPT DA %': parseFloat(d['EX LPT DA %']), 'EX LRP DA QTD': parseFloat(d['EX LRP DA QTD']) })), [kpiData]);
-  // Re-added useMemo for relevant data for the table, even if the graph is removed
   const ecoRepairVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'ECO REPAIR VD': parseFloat(d['ECO REPAIR VD']) })), [kpiData]);
   const ftcHappyCallChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC HAPPY CALL': parseFloat(d['FTC HAPPY CALL']) })), [kpiData]);
   const poInHomeD1ChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'PO IN HOME D+1': parseFloat(d['PO IN HOME D+1']) })), [kpiData]);
@@ -310,7 +310,6 @@ function Dashboard() {
   const ssrVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR VD': parseFloat(d['SSR VD']) })), [kpiData]);
   const ssrDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR DA': parseFloat(d['SSR DA']) })), [kpiData]);
 
-  // Keep useMemo for these metrics for the table, even if their graphs are removed
   const treinamentosChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Treinamentos': parseFloat(d['Treinamentos']) })), [kpiData]);
   const orcamentoChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Orçamento': parseFloat(d['Orçamento']) })), [kpiData]);
   const vendasStorePlusChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'VENDAS STORE+': parseFloat(d['VENDAS STORE+']) })), [kpiData]);
@@ -326,7 +325,7 @@ function Dashboard() {
 
   return (
     <div className="output">
-      <h3>Ranking de Ordens de Serviço por Técnico ✅ </h3>
+      <h3>Ranking de Ordens de Serviço por Técnico ✅ </h3>
       {technicianRanking.length === 0 ? (
         <p className="no-data-message">Nenhuma ordem de serviço encontrada para o ranking.</p>
       ) : (
@@ -366,29 +365,29 @@ function Dashboard() {
       <div className="kpi-grid">
         <KPIChart
           data={ltpvdChartData}
-          title="  LTP VD % ⬇️   "
+          title=" LTP VD % ⬇️ "
           dataKeys={[{ dataKey: 'LTP VD %', stroke: '#8884d8', name: 'LTP VD %' }]}
-          meta={[ // Now an array of meta objects for multiple reference lines
+          meta={[
             { value: 12.8, stroke: '#ffc658', label: 'Meta: 12.8%' },
-            { value: 5, stroke: '#FF0000', label: 'P4P: 5%' } // Adding the 5% line
+            { value: 5, stroke: '#FF0000', label: 'P4P: 5%' }
           ]}
           tooltipContent={<CustomTooltip />}
         />
 
         <KPIChart
           data={ltpdaChartData}
-          title="  LTP DA % ⬇️  "
+          title=" LTP DA % ⬇️ "
           dataKeys={[{ dataKey: 'LTP DA %', stroke: '#ff7300', name: 'LTP DA %' }]}
-          meta={[ // Two meta lines for LTP DA %
-            { value: 17.4, stroke: '#00C49F', label: 'Meta: 17.4%' }, // Original meta
-            { value: 7, stroke: '#FFD700', label: 'P4P: 7%' } // New meta line for LTP DA
+          meta={[
+            { value: 17.4, stroke: '#00C49F', label: 'Meta: 17.4%' },
+            { value: 7, stroke: '#FFD700', label: 'P4P: 7%' }
           ]}
           tooltipContent={<CustomTooltip />}
         />
 
         <KPIChart
           data={exltpvdChartData}
-          title="  EX LTP VD % ⬇️   "
+          title=" EX LTP VD % ⬇️ "
           dataKeys={[{ dataKey: 'EX LTP VD %', stroke: '#3366FF', name: 'EX LTP VD %' }]}
           meta={{ value: 1.44, stroke: '#FFCC00', label: 'Meta: 1.44%' }}
           tooltipContent={<CustomTooltip />}
@@ -397,61 +396,56 @@ function Dashboard() {
 
         <KPIChart
           data={exltpdaChartData}
-          title="  EX LTP DA % ⬇️   "
+          title=" EX LTP DA % ⬇️ "
           dataKeys={[{ dataKey: 'EX LPT DA %', stroke: '#CC0066', name: 'EX LTP DA %' }]}
           meta={{ value: 1.50, stroke: '#99FF00', label: 'Meta: 1.50%' }}
           tooltipContent={<CustomTooltip />}
           yAxisDomain={[0, 10]}
         />
 
-        {/* RRR VD % chart moved here */}
         <KPIChart
           data={rrrVdChartData}
-          title="  RRR VD % ⬇️   "
+          title=" RRR VD % ⬇️ "
           dataKeys={[{ dataKey: 'RRR VD %', stroke: '#8A2BE2', name: 'RRR VD %' }]}
-          meta={[ // Two meta lines for RRR VD %
-            { value: 2.8, stroke: '#FFCC00', label: 'Meta: 2.8%' }, // New meta for VD
-            { value: 1.5, stroke: '#008080', label: 'P4P: 1.5%' } // Original meta for VD
+          meta={[
+            { value: 2.8, stroke: '#FFCC00', label: 'Meta: 2.8%' },
+            { value: 1.5, stroke: '#008080', label: 'P4P: 1.5%' }
           ]}
           tooltipContent={<CustomTooltip />}
           yAxisDomain={[0, 15]}
         />
 
-        {/* RRR DA % chart moved here */}
         <KPIChart
           data={rrrDaChartData}
-          title="  RRR DA % ⬇️   "
+          title=" RRR DA % ⬇️ "
           dataKeys={[{ dataKey: 'RRR DA %', stroke: '#A52A2A', name: 'RRR DA %' }]}
-          meta={[ // Two meta lines for RRR DA %
-            { value: 5, stroke: '#FF4500', label: 'Meta: 5%' }, // New meta for DA
-            { value: 3, stroke: '#FFD700', label: 'P4P: 3%' } // Original meta for DA
+          meta={[
+            { value: 5, stroke: '#FF4500', label: 'Meta: 5%' },
+            { value: 3, stroke: '#FFD700', label: 'P4P: 3%' }
           ]}
           tooltipContent={<CustomTooltip />}
           yAxisDomain={[0, 15]}
         />
 
-        {/* SSR VD chart moved here */}
         <KPIChart
           data={ssrVdChartData}
-          title="  SSR VD % ⬇️   "
+          title=" SSR VD % ⬇️ "
           dataKeys={[{ dataKey: 'SSR VD', stroke: '#BA55D3', name: 'SSR VD' }]}
           meta={{ value: 0.4, stroke: '#FFD700', label: 'Meta: 0.4%' }}
           tooltipContent={<CustomTooltip />}
         />
 
-        {/* SSR DA chart moved here */}
         <KPIChart
           data={ssrDaChartData}
-          title="  SSR DA % ⬇️   "
+          title=" SSR DA % ⬇️ "
           dataKeys={[{ dataKey: 'SSR DA', stroke: '#FF00FF', name: 'SSR DA' }]}
           meta={{ value: 1.1, stroke: '#FFA07A', label: 'Meta: 1.1%' }}
           tooltipContent={<CustomTooltip />}
         />
 
-        {/* Keeping Eco Repair, FTC Happy Call, PO In Home D+1, 1ST Visit VD, IN HOME D+1 */}
         <KPIChart
           data={ecoRepairVdChartData}
-          title="  ECO REPAIR VD % ⬆️   "
+          title=" ECO REPAIR VD % ⬆️ "
           dataKeys={[{ dataKey: 'ECO REPAIR VD', stroke: '#4CAF50', name: 'ECO REPAIR VD' }]}
           meta={{ value: 60, stroke: '#FF5722', label: 'Meta: 60%' }}
           tooltipContent={<CustomTooltip />}
@@ -460,7 +454,7 @@ function Dashboard() {
 
         <KPIChart
           data={ftcHappyCallChartData}
-          title="  FTC HAPPY CALL % ⬆️   "
+          title=" FTC HAPPY CALL % ⬆️ "
           dataKeys={[{ dataKey: 'FTC HAPPY CALL', stroke: '#9C27B0', name: 'FTC HAPPY CALL' }]}
           meta={{ value: 88, stroke: '#FFEB3B', label: 'Meta: 88%' }}
           tooltipContent={<CustomTooltip />}
@@ -469,7 +463,7 @@ function Dashboard() {
 
         <KPIChart
           data={poInHomeD1ChartData}
-          title="  PO IN HOME D+1 % ⬆️   "
+          title=" PO IN HOME D+1 % ⬆️ "
           dataKeys={[{ dataKey: 'PO IN HOME D+1', stroke: '#3F51B5', name: 'PO IN HOME D+1' }]}
           meta={{ value: 70, stroke: '#FFC107', label: 'Meta: 70%' }}
           tooltipContent={<CustomTooltip />}
@@ -478,7 +472,7 @@ function Dashboard() {
 
         <KPIChart
           data={firstVisitVdChartData}
-          title="  1ST VISIT VD % ⬆️   "
+          title=" 1ST VISIT VD % ⬆️ "
           dataKeys={[{ dataKey: '1ST VISIT VD', stroke: '#FFBB28', name: '1ST VISIT VD' }]}
           meta={{ value: 20, stroke: '#FF0000', label: 'Meta: 20%' }}
           tooltipContent={<CustomTooltip />}
@@ -487,7 +481,7 @@ function Dashboard() {
 
         <KPIChart
           data={inHomeD1ChartData}
-          title="  IN HOME D+1 % ⬆️   "
+          title=" IN HOME D+1 % ⬆️ "
           dataKeys={[{ dataKey: 'IN HOME D+1', stroke: '#00C49F', name: 'IN HOME D+1' }]}
           meta={{ value: 20, stroke: '#FF4081', label: 'Meta: 20%' }}
           tooltipContent={<CustomTooltip />}
@@ -496,7 +490,7 @@ function Dashboard() {
 
         <KPIChart
           data={rnpsVdChartData}
-          title="  R-NPS VD % ⬆️   "
+          title=" R-NPS VD % ⬆️ "
           dataKeys={[{ dataKey: 'R-NPS VD', stroke: '#4682B4', name: 'R-NPS VD' }]}
           meta={{ value: 80, stroke: '#9ACD32', label: 'Meta: 80%' }}
           tooltipContent={<CustomTooltip />}
@@ -505,14 +499,13 @@ function Dashboard() {
 
         <KPIChart
           data={rnpsDaChartData}
-          title="  R-NPS DA % ⬆️   "
+          title=" R-NPS DA % ⬆️ "
           dataKeys={[{ dataKey: 'R-NPS DA', stroke: '#FF4500', name: 'R-NPS DA' }]}
           meta={{ value: 78, stroke: '#ADFF2F', label: 'Meta: 78%' }}
           tooltipContent={<CustomTooltip />}
           yAxisDomain={[0, 100]}
         />
       </div>
-
 
       {/* Table for other metrics */}
       <h3>Outras Métricas por Semana ✅</h3>
@@ -529,7 +522,6 @@ function Dashboard() {
           <thead>
             <tr style={{ background: '#333' }}>
               <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Semana</th>
-              {/* Restored Orçamento, Treinamentos, Vendas Store+ headers */}
               <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Orçamento 💲</th>
               <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Treinamentos % </th>
               <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Vendas Store+ </th>
@@ -539,7 +531,6 @@ function Dashboard() {
             {kpiData.map((dataPoint, index) => (
               <tr key={dataPoint.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.name}</td>
-                {/* Restored Orçamento, Treinamentos, Vendas Store+ data cells */}
                 <td style={{ padding: '10px', border: '1px solid #555' }}>
                   {dataPoint['Orçamento'] || 'N/A'}
                 </td>
@@ -581,7 +572,7 @@ function Dashboard() {
               <tr key={dataPoint.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.name}</td>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.score}</td>
-                <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.accelerators}</td>
+                <td style={{ padding: '10px', border: '1px solid #512' }}>{dataPoint.accelerators}</td>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.detractors}</td>
                 <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.finalScore.toFixed(1)}</td>
               </tr>
