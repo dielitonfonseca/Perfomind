@@ -372,6 +372,7 @@ function Dashboard() {
             { value: 5, stroke: '#FF0000', label: 'P4P: 5%' }
           ]}
           tooltipContent={<CustomTooltip />}
+           yAxisDomain={[0, 40]}
         />
 
         <KPIChart
