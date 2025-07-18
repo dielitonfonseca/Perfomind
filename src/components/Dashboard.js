@@ -103,6 +103,7 @@ const META_ORC_IH = 75000;
 function Dashboard() {
   const [technicianRanking, setTechnicianRanking] = useState([]);
   const [kpiData, setKpiData] = useState([]);
+  const lastFourWeeksKpiData = kpiData.slice(-8)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -183,11 +184,11 @@ function Dashboard() {
         unsubscribes.push(unsubscribeTecnicos);
 
         const kpisCollectionRef = collection(db, 'kpis');
-        const q = query(kpisCollectionRef, orderBy('week', 'asc'), limit(4));
+        const q = query(kpisCollectionRef, orderBy('week', 'asc'), limit(8));
 
         const unsubscribeKpis = onSnapshot(q, (snapshot) => {
           const fetchedKpis = snapshot.docs.map(doc => ({
-            name: `Semana ${doc.data().week}`,
+            name: `W ${doc.data().week}`,
             week: doc.data().week,
             ...doc.data(),
           }));
@@ -505,10 +506,10 @@ function Dashboard() {
       {isMobile ? (
         <>
           <h2>Outras Métricas por Semana</h2>
-          {kpiData.length === 0 ? (
+          {lastFourWeeksKpiData.length === 0 ? (
             <p className="no-data-message">Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 4 semanas.</p>
           ) : (
-            kpiData.map((dataPoint, index) => (
+            lastFourWeeksKpiData.map((dataPoint, index) => (
               <div key={dataPoint.name} style={{ marginBottom: '15px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
                 <h1 style={{ textAlign: 'center' }}>{dataPoint.name}</h1>
                 <p style={{ textAlign: 'center' }}>Orçamento: {dataPoint['Orçamento'] || 'N/A'}</p>
