@@ -1,11 +1,12 @@
+// src/components/Dashboard.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, orderBy } from 'firebase/firestore'; // Removed limit
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label } from 'recharts';
 
 const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [0, 'auto'] }) => {
   if (!data || data.length === 0) {
-    return <p className="no-data-message">Nenhum dado de "{title}" encontrado para as últimas 4 semanas.</p>;
+    return <p className="no-data-message">Nenhum dado de "{title}" encontrado para as últimas 8 semanas.</p>;
   }
 
   return (
@@ -103,7 +104,6 @@ const META_ORC_IH = 75000;
 function Dashboard() {
   const [technicianRanking, setTechnicianRanking] = useState([]);
   const [kpiData, setKpiData] = useState([]);
-  const lastFourWeeksKpiData = kpiData.slice(-8)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -184,7 +184,8 @@ function Dashboard() {
         unsubscribes.push(unsubscribeTecnicos);
 
         const kpisCollectionRef = collection(db, 'kpis');
-        const q = query(kpisCollectionRef, orderBy('week', 'asc'), limit(8));
+        // Remove the limit() from the query to fetch all available data
+        const q = query(kpisCollectionRef, orderBy('week', 'asc')); 
 
         const unsubscribeKpis = onSnapshot(q, (snapshot) => {
           const fetchedKpis = snapshot.docs.map(doc => ({
@@ -193,7 +194,8 @@ function Dashboard() {
             ...doc.data(),
           }));
           const sortedKpis = [...fetchedKpis].sort((a, b) => a.week - b.week);
-          setKpiData(sortedKpis);
+          // Now, slice the sorted data to get the last 8 weeks
+          setKpiData(sortedKpis.slice(-8)); 
           setLoading(false);
         }, (err) => {
           console.error("Erro no listener de KPIs:", err);
@@ -266,6 +268,7 @@ function Dashboard() {
     return { score, accelerators, detractors, finalScore };
   };
 
+  // The weeklyScores will now automatically reflect the last 8 weeks due to kpiData being sliced.
   const weeklyScores = useMemo(() => {
     return kpiData.map(dataPoint => ({
       name: dataPoint.name,
@@ -290,6 +293,7 @@ function Dashboard() {
   const lastWeekScore = weeklyScores.length > 0 ? weeklyScores[weeklyScores.length - 1].finalScore : 0;
   const lastWeekCommission = calculateCommission(lastWeekScore);
 
+  // All useMemo hooks that depend on kpiData will now correctly reflect the last 8 weeks.
   const ltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [kpiData]);
   const ltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [kpiData]);
   const exltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [kpiData]);
@@ -309,6 +313,9 @@ function Dashboard() {
   const treinamentosChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Treinamentos': parseFloat(d['Treinamentos']) })), [kpiData]);
   const orcamentoChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Orçamento': parseFloat(d['Orçamento']) })), [kpiData]);
   const vendasStorePlusChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'VENDAS STORE+': parseFloat(d['VENDAS STORE+']) })), [kpiData]);
+
+  // Remove this line as kpiData is already sliced to the last 8 weeks.
+  // const lastFourWeeksKpiData = kpiData.slice(-8);
 
 
   if (loading) {
@@ -506,10 +513,10 @@ function Dashboard() {
       {isMobile ? (
         <>
           <h2>Outras Métricas por Semana</h2>
-          {lastFourWeeksKpiData.length === 0 ? (
-            <p className="no-data-message">Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 4 semanas.</p>
+          {kpiData.length === 0 ? (
+            <p className="no-data-message">Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 8 semanas.</p>
           ) : (
-            lastFourWeeksKpiData.map((dataPoint, index) => (
+            kpiData.map((dataPoint, index) => (
               <div key={dataPoint.name} style={{ marginBottom: '15px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
                 <h1 style={{ textAlign: 'center' }}>{dataPoint.name}</h1>
                 <p style={{ textAlign: 'center' }}>Orçamento: {dataPoint['Orçamento'] || 'N/A'}</p>
@@ -523,7 +530,7 @@ function Dashboard() {
         <>
           <h3>Outras Métricas por Semana </h3>
           {kpiData.length === 0 ? (
-            <p className="no-data-message">Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 4 semanas.</p>
+            <p className="no-data-message">Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 8 semanas.</p>
           ) : (
             <table style={{
               width: '80%',
@@ -597,7 +604,7 @@ function Dashboard() {
                   <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Pontuação</th>
                   <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Aceleradores</th>
                   <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Detratores</th>
-                  <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Final</th>
+                  <th style={{ padding: '10px', border: '1px solid #555' }}>Final</th>
                 </tr>
               </thead>
               <tbody>
