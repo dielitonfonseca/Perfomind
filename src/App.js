@@ -5,7 +5,7 @@ import './App.css';
 import Form from './components/Form';
 import Output from './components/Output';
 import DashboardPage from './pages/DashboardPage';
-import KpisPage from './pages/KpisPage'; // Importe a nova página de KPIs
+import KpisPage from './pages/KpisPage';
 
 function App() {
   const [formData, setFormData] = useState(null);
@@ -25,9 +25,7 @@ function App() {
               <li>
                 <Link to="/dashboard">Dashboard</Link>
               </li>
-              <li>
-                {/*<Link to="/kpis">KPIs</Link>   */}
-              </li>
+              {/* O link para "Gerar PDF" foi removido pois a funcionalidade agora está na página principal */}
             </ul>
           </nav>
         </header>
@@ -42,7 +40,7 @@ function App() {
               </>
             } />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/kpis" element={<KpisPage />} /> {/* Nova rota para a página de KPIs */}
+            <Route path="/kpis" element={<KpisPage />} />
           </Routes>
         </div>
       </div>

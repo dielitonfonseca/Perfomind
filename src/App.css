@@ -298,3 +298,35 @@ textarea:-webkit-autofill {
 .custom-tooltip p {
     margin: 3px 0; /* Space out the individual data points */
 }
+
+form#osForm {
+    display: flex;
+    flex-direction: column;
+    width: 100%; /* Ocupa 100% da largura disponível do pai */
+    max-width: 600px; /* Limita a largura máxima para desktop */
+    margin: 0 auto; /* Centraliza o formulário na página */
+    padding: 20px;
+    border-radius: 8px;
+    box-sizing: border-box; /* Inclui padding e borda na largura total */
+}
+
+.signature-section-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Centraliza horizontalmente o canvas e o botão dentro deste contêiner */
+    gap: 10px;
+
+    border-radius: 8px;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    padding: 15px;
+    width: calc(100% - 20px); /* Ocupa a largura total do pai menos o padding do pai, ajustado para as bordas */
+    box-sizing: border-box; /* Inclui padding e borda na largura total */
+}
+
+.sigCanvas {
+    width: 100%; /* Faz o canvas ocupar 100% da largura do seu PARENT (`.signature-section-container`) */
+    height: 100px; /* Mantém uma altura fixa */
+    border-radius: 4px;
+    touch-action: none; /* Importante para dispositivos touch, evita scroll */
+}
