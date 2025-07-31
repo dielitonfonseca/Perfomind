@@ -170,7 +170,7 @@ Observações: ${observacoes}
       alert('Erro ao cadastrar ordem de serviço no Firebase. Verifique o console para mais detalhes.');
     }
 
-   
+    limparFormulario();
   };
 
   const preencherPDF = async () => {
@@ -220,6 +220,21 @@ Observações: ${observacoes}
       }
 
       const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
+      const defeitoFinal = isSamsung ? defeitoSelect : defeitoManual;
+      const reparoFinal = isSamsung ? reparoSelect : reparoManual;
+      
+      const textoObservacoes = `Observações: ${observacoes}`;
+      const textoDefeito = isSamsung ? `Código de Defeito: ${defeitoFinal}` : `Defeito: ${defeitoFinal}`;
+      const textoReparo = isSamsung ? `Código de Reparo: ${reparoFinal}` : `Peça necessária: ${reparoFinal}`;
+      
+      const offset = 10;
+      
+      // Formata a data para dd/mm/aaaa
+      let dataFormatada = '';
+      if (dataVisita) {
+        const [ano, mes, dia] = dataVisita.split('-');
+        dataFormatada = `${dia}/${mes}/${ano}`;
+      }
 
       if (tipoAparelho === 'VD') {
         drawText("FERNANDES E MESQUITA", 119, height - 72);
@@ -227,9 +242,12 @@ Observações: ${observacoes}
         drawText(modelo, 90, height - 100);
         drawText(serial, 420, height - 87);
         drawText(numero, 420, height - 72);
-        drawText(dataVisita, 450, height - 100);
+        drawText(dataFormatada, 450, height - 100); // Usando a data formatada
         drawText(tecnicoFinal, 120, height - 800);
-        drawText(observacoes, 70, height - 750);
+        
+        drawText(textoDefeito, 70, height - 750);
+        drawText(textoReparo, 70, height - 750 - offset);
+        drawText(textoObservacoes, 70, height - 750 - (offset * 2));
 
         if (pngImage) {
           page.drawImage(pngImage, {
@@ -245,11 +263,13 @@ Observações: ${observacoes}
         drawText(`${modelo}`, 77, height - 137);
         drawText(`${serial}`, 590, height - 125);
         drawText(`${numero}`, 590, height - 110);
-        drawText(`${dataVisita}`, 605, height - 137);
+        drawText(`${dataFormatada}`, 605, height - 137); // Usando a data formatada
         drawText(`${tecnicoFinal}`, 110, height - 534);
-        drawText(`${observacoes}`, 65, height - 470);
-        drawText(`Obs: ${observacoes}`, 50, height - 700);
-
+        
+        drawText(textoDefeito, 65, height - 470);
+        drawText(textoReparo, 65, height - 470 - offset);
+        drawText(textoObservacoes, 65, height - 470 - (offset * 2));
+        
         if (pngImage) {
           page.drawImage(pngImage, {
             x: 550,
@@ -264,11 +284,13 @@ Observações: ${observacoes}
         drawText(`${modelo}`, 87, height - 147);
         drawText(`${serial}`, 660, height - 132);
         drawText(`${numero}`, 660, height - 115);
-        drawText(`${dataVisita}`, 665, height - 147);
+        drawText(`${dataFormatada}`, 665, height - 147); // Usando a data formatada
         drawText(`${tecnicoFinal}`, 114, height - 538);
-        drawText(`${observacoes}`, 65, height - 465);
-        drawText(`Obs: ${observacoes}`, 50, height - 700);
-
+        
+        drawText(textoDefeito, 65, height - 465);
+        drawText(textoReparo, 65, height - 465 - offset);
+        drawText(textoObservacoes, 65, height - 465 - (offset * 2));
+        
         if (pngImage) {
           page.drawImage(pngImage, {
             x: 600,
@@ -283,11 +305,13 @@ Observações: ${observacoes}
         drawText(`${modelo}`, 87, height - 127);
         drawText(`${serial}`, 532, height - 116);
         drawText(`${numero}`, 537, height - 105);
-        drawText(`${dataVisita}`, 552, height - 128);
+        drawText(`${dataFormatada}`, 552, height - 128); // Usando a data formatada
         drawText(`${tecnicoFinal}`, 114, height - 533);
-        drawText(`${observacoes}`, 65, height - 470);
-        drawText(`Obs: ${observacoes}`, 50, height - 710);
-
+        
+        drawText(textoDefeito, 65, height - 470);
+        drawText(textoReparo, 65, height - 470 - offset);
+        drawText(textoObservacoes, 65, height - 470 - (offset * 2));
+        
         if (pngImage) {
           page.drawImage(pngImage, {
             x: 540,
@@ -360,13 +384,14 @@ Observações: ${observacoes}
           onChange={(e) => setTecnicoSelect(e.target.value)}
         >
           <option value="">Selecione um técnico</option>
-          <option value="Dieliton">Dieliton 😎</option>
-          <option value="Matheus">Matheus</option>
+          <option value="Dieliton Fonseca">Dieliton 😎</option>
+          <option value="Matheus Lindoso">Matheus Lindoso</option>
           <option value="Claudio Cris">Claudio Cris</option>
-          <option value="Wallysson">Wallysson</option>
-          <option value="Joao">João Pedro</option>
-          <option value="Fernando">Fernando</option>
-          <option value="Daniel">Daniel</option>
+          <option value="Wallysson ">Wallysson</option>
+          <option value="João Pedro">João Pedro</option>
+          <option value="Pablo Henrique">Pablo</option>
+          <option value="Matheus Henrique">Matheus Henrique</option>
+          <option value="Daniel Moraes">Daniel</option>
           <option value="nao_achei">Não achei a opção certa</option>
         </select>
 
