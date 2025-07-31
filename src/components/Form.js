@@ -1,7 +1,7 @@
 // src/components/Form.js
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import SignatureCanvas from 'react-signature-canvas';
@@ -98,6 +98,32 @@ Observações: ${observacoes}
       sigCanvas.current.clear();
     }
   };
+  
+  const updateTechnicianStats = async (tecnicoNome, tipoOS) => {
+    const statsDocRef = doc(db, 'technicianStats', tecnicoNome);
+    const statsDoc = await getDoc(statsDocRef);
+    
+    if (statsDoc.exists()) {
+      const updateData = {
+        totalOS: increment(1),
+        lastUpdate: serverTimestamp(),
+      };
+      if (tipoOS === 'samsung') {
+        updateData.samsungOS = increment(1);
+      } else if (tipoOS === 'assurant') {
+        updateData.assurantOS = increment(1);
+      }
+      await updateDoc(statsDocRef, updateData);
+    } else {
+      const initialData = {
+        totalOS: 1,
+        samsungOS: tipoOS === 'samsung' ? 1 : 0,
+        assurantOS: tipoOS === 'assurant' ? 1 : 0,
+        lastUpdate: serverTimestamp(),
+      };
+      await setDoc(statsDocRef, initialData);
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -163,6 +189,8 @@ Observações: ${observacoes}
         dataGeracao: serverTimestamp(),
         dataGeracaoLocal: new Date().toISOString()
       });
+      
+      await updateTechnicianStats(tecnicoFinal, tipoOS);
 
       console.log('Ordem de serviço cadastrada no Firebase com sucesso!');
     } catch (e) {

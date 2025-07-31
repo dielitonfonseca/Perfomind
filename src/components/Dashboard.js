@@ -1,7 +1,7 @@
 // src/components/Dashboard.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, onSnapshot, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label } from 'recharts';
 
 const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [0, 'auto'] }) => {
@@ -125,93 +125,43 @@ function Dashboard() {
     setError(null);
 
     const unsubscribes = [];
+    
+    // Novo listener para a coleção agregada
+    const technicianStatsCollectionRef = collection(db, 'technicianStats');
+    const q = query(technicianStatsCollectionRef, orderBy('totalOS', 'desc'));
 
-    const setupRealtimeListeners = async () => {
-      try {
-        const tecnicoCollectionRef = collection(db, 'ordensDeServico');
-        const unsubscribeTecnicos = onSnapshot(tecnicoCollectionRef, async (tecnicoSnapshot) => {
-          const currentTechnicianStats = {};
+    const unsubscribeTechnicianStats = onSnapshot(q, (snapshot) => {
+      const sortedTechnicians = snapshot.docs.map(doc => ({
+        name: doc.id,
+        ...doc.data(),
+      }));
+      setTechnicianRanking(sortedTechnicians);
+      setLoading(false);
+    }, (err) => {
+      console.error("Erro no listener de estatísticas de técnicos:", err);
+      setError("Erro ao carregar ranking de técnicos. Verifique as permissões do Firebase.");
+      setLoading(false);
+    });
 
-          if (tecnicoSnapshot.empty) {
-            setTechnicianRanking([]);
-            return;
-          }
+    unsubscribes.push(unsubscribeTechnicianStats);
 
-          for (const tecnicoDoc of tecnicoSnapshot.docs) {
-            const tecnicoNome = tecnicoDoc.id;
-            let totalOS = 0;
-            let samsungOS = 0;
-            let assurantOS = 0;
+    const kpisCollectionRef = collection(db, 'kpis');
+    const qKpis = query(kpisCollectionRef, orderBy('week', 'asc'));
 
-            const osPorDataCollectionRef = collection(tecnicoDoc.ref, 'osPorData');
-            const osPorDataSnapshot = await getDocs(osPorDataCollectionRef);
+    const unsubscribeKpis = onSnapshot(qKpis, (snapshot) => {
+      const fetchedKpis = snapshot.docs.map(doc => ({
+        name: `W ${doc.data().week}`,
+        week: doc.data().week,
+        ...doc.data(),
+      }));
+      const sortedKpis = [...fetchedKpis].sort((a, b) => a.week - b.week);
+      setKpiData(sortedKpis.slice(-8));
+    }, (err) => {
+      console.error("Erro no listener de KPIs:", err);
+      setError("Erro ao carregar dados de KPIs. Verifique as permissões do Firebase.");
+    });
 
-            for (const dateDoc of osPorDataSnapshot.docs) {
-              const samsungCollectionRef = collection(dateDoc.ref, 'Samsung');
-              const assurantCollectionRef = collection(dateDoc.ref, 'Assurant');
-
-              const samsungDocs = await getDocs(samsungCollectionRef);
-              samsungDocs.forEach(() => {
-                totalOS++;
-                samsungOS++;
-              });
-
-              const assurantDocs = await getDocs(assurantCollectionRef);
-              assurantDocs.forEach(() => {
-                totalOS++;
-                assurantOS++;
-              });
-            }
-            currentTechnicianStats[tecnicoNome] = {
-              total: totalOS,
-              samsung: samsungOS,
-              assurant: assurantOS,
-            };
-          }
-
-          const sortedTechnicians = Object.keys(currentTechnicianStats).map(tecnico => ({
-            name: tecnico,
-            total: currentTechnicianStats[tecnico].total,
-            samsung: currentTechnicianStats[tecnico].samsung,
-            assurant: currentTechnicianStats[tecnico].assurant,
-          })).sort((a, b) => b.total - a.total);
-
-          setTechnicianRanking(sortedTechnicians);
-        }, (err) => {
-          console.error("Erro no listener de técnicos:", err);
-          setError("Erro ao carregar ranking de técnicos. Verifique as permissões do Firebase.");
-        });
-
-        unsubscribes.push(unsubscribeTecnicos);
-
-        const kpisCollectionRef = collection(db, 'kpis');
-        const q = query(kpisCollectionRef, orderBy('week', 'asc'));
-
-        const unsubscribeKpis = onSnapshot(q, (snapshot) => {
-          const fetchedKpis = snapshot.docs.map(doc => ({
-            name: `W ${doc.data().week}`,
-            week: doc.data().week,
-            ...doc.data(),
-          }));
-          const sortedKpis = [...fetchedKpis].sort((a, b) => a.week - b.week);
-          setKpiData(sortedKpis.slice(-8));
-          setLoading(false);
-        }, (err) => {
-          console.error("Erro no listener de KPIs:", err);
-          setError("Erro ao carregar dados de KPIs. Verifique as permissões do Firebase.");
-          setLoading(false);
-        });
-
-        unsubscribes.push(unsubscribeKpis);
-
-      } catch (err) {
-        console.error("Erro ao configurar listeners do Firebase: ", err);
-        setError("Erro ao carregar dados. Verifique sua conexão ou as permissões do Firebase.");
-        setLoading(false);
-      }
-    };
-
-    setupRealtimeListeners();
+    unsubscribes.push(unsubscribeKpis);
 
     return () => {
       console.log("Limpando listeners do Firebase...");
@@ -294,7 +244,7 @@ function Dashboard() {
   const ltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [kpiData]);
   const ltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [kpiData]);
   const exltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [kpiData]);
-  const exltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LPT DA %': parseFloat(d['EX LPT DA %']), 'EX LRP DA QTD': parseFloat(d['EX LRP DA QTD']) })), [kpiData]);
+  const exltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LPT DA %': parseFloat(d['EX LRP DA QTD']), 'EX LRP DA QTD': parseFloat(d['EX LRP DA QTD']) })), [kpiData]);
   const ecoRepairVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'ECO REPAIR VD': parseFloat(d['ECO REPAIR VD']) })), [kpiData]);
   const ftcHappyCallChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC HAPPY CALL': parseFloat(d['FTC HAPPY CALL']) })), [kpiData]);
   const poInHomeD1ChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'PO IN HOME D+1': parseFloat(d['PO IN HOME D+1']) })), [kpiData]);
@@ -346,9 +296,9 @@ function Dashboard() {
               {technicianRanking.map((tecnico, index) => (
                 <tr key={tecnico.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
                   <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.name}</td>
-                  <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.total}</td>
-                  <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.samsung}</td>
-                  <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.assurant}</td>
+                  <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.totalOS}</td>
+                  <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.samsungOS}</td>
+                  <td style={{ padding: '10px', border: '1px solid #555' }}>{tecnico.assurantOS}</td>
                 </tr>
               ))}
             </tbody>
