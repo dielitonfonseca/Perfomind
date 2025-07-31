@@ -30,12 +30,13 @@ function Form({ setFormData }) {
   const [standby, setStandby] = useState(false);
 
   const sigCanvas = useRef(null);
+  const sigContainer = useRef(null);
 
   useEffect(() => {
     const tecnicoSalvo = localStorage.getItem('tecnico');
     if (tecnicoSalvo) {
       if (
-        ['Dieliton', 'Matheus', 'Daniel', 'Wallysson', 'João Pedro', 'Claudio Cris', 'Fernando'].includes(tecnicoSalvo)
+        ['Dieliton Fonseca', 'Matheus Lindoso', 'Daniel Moraes', 'Yago Giordanni', 'Pablo Henrique', 'Wallysson Cesar', 'João Pedro', 'Claudio Cris', 'Matheus Henrique'].includes(tecnicoSalvo)
       ) {
         setTecnicoSelect(tecnicoSalvo);
         setTecnicoManual('');
@@ -53,6 +54,25 @@ function Form({ setFormData }) {
       localStorage.setItem('tecnico', tecnicoSelect);
     }
   }, [tecnicoSelect, tecnicoManual]);
+
+  // NOVO useEffect para redimensionamento do canvas
+  useEffect(() => {
+    function resizeCanvas() {
+      if (sigCanvas.current && sigContainer.current) {
+        const canvas = sigCanvas.current.getCanvas();
+        const containerWidth = sigContainer.current.offsetWidth;
+        const ratio = 100 / canvas.height; // Mantém a proporção se necessário, ou defina uma altura fixa
+        canvas.width = containerWidth;
+        canvas.height = canvas.height * (containerWidth / canvas.width);
+        sigCanvas.current.clear(); // Limpa a assinatura após o redimensionamento
+      }
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas(); // Chama a função na montagem do componente
+
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
 
   const validarNumero = (num, tipo) => {
     const padraoSamsung = /^417\d{7}$/;
@@ -98,11 +118,11 @@ Observações: ${observacoes}
       sigCanvas.current.clear();
     }
   };
-  
+
   const updateTechnicianStats = async (tecnicoNome, tipoOS) => {
     const statsDocRef = doc(db, 'technicianStats', tecnicoNome);
     const statsDoc = await getDoc(statsDocRef);
-    
+
     if (statsDoc.exists()) {
       const updateData = {
         totalOS: increment(1),
@@ -189,7 +209,7 @@ Observações: ${observacoes}
         dataGeracao: serverTimestamp(),
         dataGeracaoLocal: new Date().toISOString()
       });
-      
+
       await updateTechnicianStats(tecnicoFinal, tipoOS);
 
       console.log('Ordem de serviço cadastrada no Firebase com sucesso!');
@@ -248,13 +268,13 @@ Observações: ${observacoes}
       const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
       const defeitoFinal = isSamsung ? defeitoSelect : defeitoManual;
       const reparoFinal = isSamsung ? reparoSelect : reparoManual;
-      
+
       const textoObservacoes = `Observações: ${observacoes}`;
       const textoDefeito = isSamsung ? `Código de Defeito: ${defeitoFinal}` : `Defeito: ${defeitoFinal}`;
       const textoReparo = isSamsung ? `Código de Reparo: ${reparoFinal}` : `Peça necessária: ${reparoFinal}`;
-      
+
       const offset = 10;
-      
+
       // Formata a data para dd/mm/aaaa
       let dataFormatada = '';
       if (dataVisita) {
@@ -270,7 +290,7 @@ Observações: ${observacoes}
         drawText(numero, 420, height - 72);
         drawText(dataFormatada, 450, height - 100); // Usando a data formatada
         drawText(tecnicoFinal, 120, height - 800);
-        
+
         drawText(textoDefeito, 70, height - 750);
         drawText(textoReparo, 70, height - 750 - offset);
         drawText(textoObservacoes, 70, height - 750 - (offset * 2));
@@ -291,11 +311,11 @@ Observações: ${observacoes}
         drawText(`${numero}`, 590, height - 110);
         drawText(`${dataFormatada}`, 605, height - 137); // Usando a data formatada
         drawText(`${tecnicoFinal}`, 110, height - 534);
-        
+
         drawText(textoDefeito, 65, height - 470);
         drawText(textoReparo, 65, height - 470 - offset);
         drawText(textoObservacoes, 65, height - 470 - (offset * 2));
-        
+
         if (pngImage) {
           page.drawImage(pngImage, {
             x: 550,
@@ -312,11 +332,11 @@ Observações: ${observacoes}
         drawText(`${numero}`, 660, height - 115);
         drawText(`${dataFormatada}`, 665, height - 147); // Usando a data formatada
         drawText(`${tecnicoFinal}`, 114, height - 538);
-        
+
         drawText(textoDefeito, 65, height - 465);
         drawText(textoReparo, 65, height - 465 - offset);
         drawText(textoObservacoes, 65, height - 465 - (offset * 2));
-        
+
         if (pngImage) {
           page.drawImage(pngImage, {
             x: 600,
@@ -333,11 +353,11 @@ Observações: ${observacoes}
         drawText(`${numero}`, 537, height - 105);
         drawText(`${dataFormatada}`, 552, height - 128); // Usando a data formatada
         drawText(`${tecnicoFinal}`, 114, height - 533);
-        
+
         drawText(textoDefeito, 65, height - 470);
         drawText(textoReparo, 65, height - 470 - offset);
         drawText(textoObservacoes, 65, height - 470 - (offset * 2));
-        
+
         if (pngImage) {
           page.drawImage(pngImage, {
             x: 540,
@@ -415,9 +435,10 @@ Observações: ${observacoes}
           <option value="Claudio Cris">Claudio Cris</option>
           <option value="Wallysson Cesar ">Wallysson Cesar</option>
           <option value="João Pedro">João Pedro</option>
-          <option value="Pablo Henrique">Pablo</option>
+          <option value="Pablo Henrique">Pablo Henrique</option>
           <option value="Matheus Henrique">Matheus Henrique</option>
           <option value="Daniel Moraes">Daniel</option>
+          <option value="Yago Giordanni">Yago Giordanni</option>
           <option value="nao_achei">Não achei a opção certa</option>
         </select>
 
@@ -586,7 +607,7 @@ Observações: ${observacoes}
             <label htmlFor="dataVisita">Data da Visita:</label>
             <input name="dataVisita" type="date" onChange={(e) => setDataVisita(e.target.value)} value={dataVisita} />
 
-            <div className="signature-section-container">
+            <div className="signature-section-container" ref={sigContainer}>
               <p className="signature-label">Assinatura do Cliente:</p>
               <SignatureCanvas
                 penColor="black"
