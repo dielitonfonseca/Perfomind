@@ -169,8 +169,6 @@ Observações: ${observacoes}
       console.error("Erro ao adicionar documento: ", e);
       alert('Erro ao cadastrar ordem de serviço no Firebase. Verifique o console para mais detalhes.');
     }
-
-    limparFormulario();
   };
 
   const preencherPDF = async () => {
@@ -387,7 +385,7 @@ Observações: ${observacoes}
           <option value="Dieliton Fonseca">Dieliton 😎</option>
           <option value="Matheus Lindoso">Matheus Lindoso</option>
           <option value="Claudio Cris">Claudio Cris</option>
-          <option value="Wallysson ">Wallysson</option>
+          <option value="Wallysson Cesar ">Wallysson Cesar</option>
           <option value="João Pedro">João Pedro</option>
           <option value="Pablo Henrique">Pablo</option>
           <option value="Matheus Henrique">Matheus Henrique</option>
