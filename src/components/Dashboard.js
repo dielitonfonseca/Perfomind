@@ -16,8 +16,8 @@ const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
-            // Margens ajustadas para ocupar mais espaço horizontal
-            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+            // Margens ajustadas para ocupar 100% do espaço horizontal
+            margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#444" />
             <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
