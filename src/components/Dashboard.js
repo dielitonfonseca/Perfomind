@@ -17,7 +17,7 @@ const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [
           <LineChart
             data={data}
             // Margens ajustadas para ocupar 100% do espaço horizontal
-            margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+            margin={{ top: 5, right: 80, left: 0, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#444" />
             <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
@@ -357,7 +357,7 @@ function Dashboard() {
         </>
       )}
 
-      ---
+     
 
       <h3>KPIs de Desempenho </h3>
       <div className="kpi-grid">
