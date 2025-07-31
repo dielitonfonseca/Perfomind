@@ -24,7 +24,7 @@ function Form({ setFormData }) {
   const [serial, setSerial] = useState('');
   const [dataVisita, setDataVisita] = useState('');
   const [tipoAparelho, setTipoAparelho] = useState('VD');
-  const [tipoChecklist, setTipoChecklist] = useState('EXCLUSAO');
+  const [tipoChecklist, setTipoChecklist] = useState('PREENCHIDO');
   const [naoLiga, setNaoLiga] = useState(false);
   const [somOk, setSomOk] = useState(false);
   const [standby, setStandby] = useState(false);

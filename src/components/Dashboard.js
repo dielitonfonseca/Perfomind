@@ -1,7 +1,7 @@
 // src/components/Dashboard.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, onSnapshot, getDocs, query, orderBy } from 'firebase/firestore'; // Removed limit
+import { collection, onSnapshot, getDocs, query, orderBy } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label } from 'recharts';
 
 const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [0, 'auto'] }) => {
@@ -16,7 +16,8 @@ const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
-            margin={{ top: 5, right: 85, left: 20, bottom: 5 }}
+            // Margens ajustadas para ocupar mais espaço horizontal
+            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#444" />
             <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
@@ -184,8 +185,7 @@ function Dashboard() {
         unsubscribes.push(unsubscribeTecnicos);
 
         const kpisCollectionRef = collection(db, 'kpis');
-        // Remove the limit() from the query to fetch all available data
-        const q = query(kpisCollectionRef, orderBy('week', 'asc')); 
+        const q = query(kpisCollectionRef, orderBy('week', 'asc'));
 
         const unsubscribeKpis = onSnapshot(q, (snapshot) => {
           const fetchedKpis = snapshot.docs.map(doc => ({
@@ -194,8 +194,7 @@ function Dashboard() {
             ...doc.data(),
           }));
           const sortedKpis = [...fetchedKpis].sort((a, b) => a.week - b.week);
-          // Now, slice the sorted data to get the last 8 weeks
-          setKpiData(sortedKpis.slice(-8)); 
+          setKpiData(sortedKpis.slice(-8));
           setLoading(false);
         }, (err) => {
           console.error("Erro no listener de KPIs:", err);
@@ -268,7 +267,6 @@ function Dashboard() {
     return { score, accelerators, detractors, finalScore };
   };
 
-  // The weeklyScores will now automatically reflect the last 8 weeks due to kpiData being sliced.
   const weeklyScores = useMemo(() => {
     return kpiData.map(dataPoint => ({
       name: dataPoint.name,
@@ -293,7 +291,6 @@ function Dashboard() {
   const lastWeekScore = weeklyScores.length > 0 ? weeklyScores[weeklyScores.length - 1].finalScore : 0;
   const lastWeekCommission = calculateCommission(lastWeekScore);
 
-  // All useMemo hooks that depend on kpiData will now correctly reflect the last 8 weeks.
   const ltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [kpiData]);
   const ltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [kpiData]);
   const exltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [kpiData]);
@@ -313,9 +310,6 @@ function Dashboard() {
   const treinamentosChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Treinamentos': parseFloat(d['Treinamentos']) })), [kpiData]);
   const orcamentoChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Orçamento': parseFloat(d['Orçamento']) })), [kpiData]);
   const vendasStorePlusChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'VENDAS STORE+': parseFloat(d['VENDAS STORE+']) })), [kpiData]);
-
-  // Remove this line as kpiData is already sliced to the last 8 weeks.
-  // const lastFourWeeksKpiData = kpiData.slice(-8);
 
 
   if (loading) {
@@ -363,6 +357,8 @@ function Dashboard() {
         </>
       )}
 
+      ---
+
       <h3>KPIs de Desempenho </h3>
       <div className="kpi-grid">
         <KPIChart
@@ -374,7 +370,7 @@ function Dashboard() {
             { value: 5, stroke: '#FF0000', label: 'P4P: 5%' }
           ]}
           tooltipContent={<CustomTooltip />}
-           yAxisDomain={[0, 40]}
+          yAxisDomain={[0, 40]}
         />
 
         <KPIChart
@@ -510,6 +506,8 @@ function Dashboard() {
         />
       </div>
 
+      ---
+
       {isMobile ? (
         <>
           <h2>Outras Métricas por Semana</h2>
@@ -567,6 +565,8 @@ function Dashboard() {
           )}
         </>
       )}
+
+      ---
 
       {isMobile ? (
         <>
