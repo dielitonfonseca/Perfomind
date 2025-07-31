@@ -283,7 +283,7 @@ Observações: ${observacoes}
       }
 
       if (tipoAparelho === 'VD') {
-        drawText("FERNANDES E MESQUITA", 119, height - 72);
+        drawText("FERNANDES COMUNICAÇÕES", 119, height - 72);
         drawText(cliente, 90, height - 85);
         drawText(modelo, 90, height - 100);
         drawText(serial, 420, height - 87);
