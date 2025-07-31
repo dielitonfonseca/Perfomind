@@ -58,7 +58,7 @@ function Form({ setFormData }) {
     const padraoSamsung = /^417\d{7}$/;
     const padraoAssurant = /^\d{8}$/;
     if (tipo === 'samsung') return padraoSamsung.test(num);
-    if (tipo === 'assurant') return padraoSamsung.test(num); // Alterado para validar Assurant com o mesmo padrão Samsung
+    if (tipo === 'assurant') return padraoAssurant.test(num);
     return false;
   };
 
@@ -75,6 +75,28 @@ ${linhaReparo}
 ${peca ? `Peça usada: ${peca}` : ''}
 Observações: ${observacoes}
 . . . . .`;
+  };
+
+  const limparFormulario = () => {
+    setNumero('');
+    setCliente('');
+    setDefeitoSelect('');
+    setDefeitoManual('');
+    setReparoSelect('');
+    setReparoManual('');
+    setPeca('');
+    setObservacoes('');
+    setModelo('');
+    setSerial('');
+    setDataVisita('');
+    setTipoAparelho('VD');
+    setTipoChecklist('PREENCHIDO');
+    setNaoLiga(false);
+    setSomOk(false);
+    setStandby(false);
+    if (sigCanvas.current) {
+      sigCanvas.current.clear();
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -115,22 +137,19 @@ Observações: ${observacoes}
     try {
       const today = new Date();
       const dateString = today.getFullYear() + '-' +
-                         String(today.getMonth() + 1).padStart(2, '0') + '-' +
-                         String(today.getDate()).padStart(2, '0');
+        String(today.getMonth() + 1).padStart(2, '0') + '-' +
+        String(today.getDate()).padStart(2, '0');
 
-      // 1. Criar ou obter o documento do técnico na coleção principal 'ordensDeServico'
       const tecnicoDocRef = doc(db, 'ordensDeServico', tecnicoFinal);
       await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true });
 
-      // 2. Adicionar a OS na subcoleção 'osPorData' -> '{data_documento}'
       const osPorDataCollectionRef = collection(tecnicoDocRef, 'osPorData');
       const dataDocRef = doc(osPorDataCollectionRef, dateString);
       await setDoc(dataDocRef, { data: dateString }, { merge: true });
 
-      // 3. Adicionar a OS na subcoleção 'Samsung' ou 'Assurant' dentro da data, usando numeroOS como ID
       const targetCollectionName = isSamsung ? 'Samsung' : 'Assurant';
       const targetCollectionRef = collection(dataDocRef, targetCollectionName);
-      const osDocRef = doc(targetCollectionRef, numeroOS); // Usando numeroOS como ID do documento
+      const osDocRef = doc(targetCollectionRef, numeroOS);
 
       await setDoc(osDocRef, {
         numeroOS: numeroOS,
@@ -151,25 +170,7 @@ Observações: ${observacoes}
       alert('Erro ao cadastrar ordem de serviço no Firebase. Verifique o console para mais detalhes.');
     }
 
-    // Limpa o formulário após o envio, exceto o técnico
-    setNumero('');
-    setCliente('');
-    setDefeitoSelect('');
-    setDefeitoManual('');
-    setReparoSelect('');
-    setReparoManual('');
-    setPeca('');
-    setObservacoes('');
-    // Limpar os novos campos do PDF também
-    setModelo('');
-    setSerial('');
-    setDataVisita('');
-    setNaoLiga(false);
-    setSomOk(false);
-    setStandby(false);
-    if (sigCanvas.current) {
-      sigCanvas.current.clear();
-    }
+   
   };
 
   const preencherPDF = async () => {
@@ -201,7 +202,7 @@ Observações: ${observacoes}
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
       const drawText = (text, x, y, size = 10) => {
-        page.drawText(String(text), { // Ensure text is string
+        page.drawText(String(text), {
           x,
           y,
           size,
@@ -218,7 +219,6 @@ Observações: ${observacoes}
         console.log("Canvas de assinatura vazio. Assinatura não será adicionada ao PDF.");
       }
 
-      // Reutilizando campos existentes do Perfomind
       const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
 
       if (tipoAparelho === 'VD') {
@@ -226,11 +226,10 @@ Observações: ${observacoes}
         drawText(cliente, 90, height - 85);
         drawText(modelo, 90, height - 100);
         drawText(serial, 420, height - 87);
-        drawText(numero, 420, height - 72); // Usando o campo 'numero' do Perfomind
+        drawText(numero, 420, height - 72);
         drawText(dataVisita, 450, height - 100);
-        drawText(tecnicoFinal, 120, height - 800); // Usando o campo 'tecnico' do Perfomind
-
-        drawText(observacoes, 70, height - 750); // Usando o campo 'observacoes' do Perfomind
+        drawText(tecnicoFinal, 120, height - 800);
+        drawText(observacoes, 70, height - 750);
 
         if (pngImage) {
           page.drawImage(pngImage, {
@@ -240,18 +239,16 @@ Observações: ${observacoes}
             height: 40
           });
         }
-
       } else if (tipoAparelho === 'WSM') {
         drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
         drawText(`${cliente}`, 77, height - 125);
         drawText(`${modelo}`, 77, height - 137);
         drawText(`${serial}`, 590, height - 125);
-        drawText(`${numero}`, 590, height - 110); // Usando o campo 'numero' do Perfomind
+        drawText(`${numero}`, 590, height - 110);
         drawText(`${dataVisita}`, 605, height - 137);
-        drawText(`${tecnicoFinal}`, 110, height - 534); // Usando o campo 'tecnico' do Perfomind
-        drawText(`${observacoes}`, 65, height - 470); // Usando o campo 'observacoes' do Perfomind
-
-        drawText(`Obs: ${observacoes}`, 50, height - 700); // Usando o campo 'observacoes' do Perfomind
+        drawText(`${tecnicoFinal}`, 110, height - 534);
+        drawText(`${observacoes}`, 65, height - 470);
+        drawText(`Obs: ${observacoes}`, 50, height - 700);
 
         if (pngImage) {
           page.drawImage(pngImage, {
@@ -261,18 +258,16 @@ Observações: ${observacoes}
             height: 40
           });
         }
-
       } else if (tipoAparelho === 'REF') {
         drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
         drawText(`${cliente}`, 87, height - 130);
         drawText(`${modelo}`, 87, height - 147);
         drawText(`${serial}`, 660, height - 132);
-        drawText(`${numero}`, 660, height - 115); // Usando o campo 'numero' do Perfomind
+        drawText(`${numero}`, 660, height - 115);
         drawText(`${dataVisita}`, 665, height - 147);
-        drawText(`${tecnicoFinal}`, 114, height - 538); // Usando o campo 'tecnico' do Perfomind
-        drawText(`${observacoes}`, 65, height - 465); // Usando o campo 'observacoes' do Perfomind
-
-        drawText(`Obs: ${observacoes}`, 50, height - 700); // Usando o campo 'observacoes' do Perfomind
+        drawText(`${tecnicoFinal}`, 114, height - 538);
+        drawText(`${observacoes}`, 65, height - 465);
+        drawText(`Obs: ${observacoes}`, 50, height - 700);
 
         if (pngImage) {
           page.drawImage(pngImage, {
@@ -282,18 +277,16 @@ Observações: ${observacoes}
             height: 40
           });
         }
-
       } else if (tipoAparelho === 'RAC') {
         drawText("FERNANDES COMUNICAÇÕES", 140, height - 0);
         drawText(`${cliente}`, 87, height - 116);
         drawText(`${modelo}`, 87, height - 127);
         drawText(`${serial}`, 532, height - 116);
-        drawText(`${numero}`, 537, height - 105); // Usando o campo 'numero' do Perfomind
+        drawText(`${numero}`, 537, height - 105);
         drawText(`${dataVisita}`, 552, height - 128);
-        drawText(`${tecnicoFinal}`, 114, height - 533); // Usando o campo 'tecnico' do Perfomind
-        drawText(`${observacoes}`, 65, height - 470); // Usando o campo 'observacoes' do Perfomind
-
-        drawText(`Obs: ${observacoes}`, 50, height - 710); // Usando o campo 'observacoes' do Perfomind
+        drawText(`${tecnicoFinal}`, 114, height - 533);
+        drawText(`${observacoes}`, 65, height - 470);
+        drawText(`Obs: ${observacoes}`, 50, height - 710);
 
         if (pngImage) {
           page.drawImage(pngImage, {
@@ -307,7 +300,7 @@ Observações: ${observacoes}
 
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const nomeArquivo = numero?.trim() || 'Checklist'; // Usando o campo 'numero' do Perfomind
+      const nomeArquivo = numero?.trim() || 'Checklist';
       saveAs(blob, `${nomeArquivo}.pdf`);
       alert("PDF gerado com sucesso!");
     } catch (error) {
@@ -514,55 +507,59 @@ Observações: ${observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         ></textarea>
 
-        {/* Novos Campos para o PDF */}
-        <h2>Dados para o Checklist</h2>
-        <label htmlFor="tipoAparelho">Tipo de Aparelho:</label>
-        <select name="tipoAparelho" onChange={(e) => setTipoAparelho(e.target.value)} value={tipoAparelho}>
-          <option value="VD">VD</option>
-          <option value="WSM">WSM</option>
-          <option value="REF">REF</option>
-          <option value="RAC">RAC</option>
-        </select>
+        {/* Seção do Checklist, agora condicional */}
+        {isSamsung && (
+          <>
+            <h2>Dados para o Checklist</h2>
+            <label htmlFor="tipoAparelho">Tipo de Aparelho:</label>
+            <select name="tipoAparelho" onChange={(e) => setTipoAparelho(e.target.value)} value={tipoAparelho}>
+              <option value="VD">VD</option>
+              <option value="WSM">WSM</option>
+              <option value="REF">REF</option>
+              <option value="RAC">RAC</option>
+            </select>
 
-        <label htmlFor="tipoChecklist">Tipo de Checklist:</label>
-        <select name="tipoChecklist" onChange={(e) => setTipoChecklist(e.target.value)} value={tipoChecklist}>
-          <option value="PREENCHIDO">Reparo Normal</option>
-          <option value="EXCLUSAO">Exclusão de Garantia</option>
-          <option value="NDF">Sem Defeito (NDF)</option>
-        </select>
+            <label htmlFor="tipoChecklist">Tipo de Checklist:</label>
+            <select name="tipoChecklist" onChange={(e) => setTipoChecklist(e.target.value)} value={tipoChecklist}>
+              <option value="PREENCHIDO">Reparo Normal</option>
+              <option value="EXCLUSAO">Exclusão de Garantia</option>
+              <option value="NDF">Sem Defeito (NDF)</option>
+            </select>
 
-        <label htmlFor="modelo">Modelo:</label>
-        <input name="modelo" placeholder="Modelo do Aparelho" onChange={(e) => setModelo(e.target.value)} value={modelo} />
+            <label htmlFor="modelo">Modelo:</label>
+            <input name="modelo" placeholder="Modelo do Aparelho" onChange={(e) => setModelo(e.target.value)} value={modelo} />
 
-        <label htmlFor="serial">Serial:</label>
-        <input name="serial" placeholder="Número de Série" onChange={(e) => setSerial(e.target.value)} value={serial} />
+            <label htmlFor="serial">Serial:</label>
+            <input name="serial" placeholder="Número de Série" onChange={(e) => setSerial(e.target.value)} value={serial} />
 
-        <label htmlFor="dataVisita">Data da Visita:</label>
-        <input name="dataVisita" type="date" onChange={(e) => setDataVisita(e.target.value)} value={dataVisita} />
+            <label htmlFor="dataVisita">Data da Visita:</label>
+            <input name="dataVisita" type="date" onChange={(e) => setDataVisita(e.target.value)} value={dataVisita} />
 
-        {/* Contêiner para centralizar a assinatura e o botão */}
-        <div className="signature-section-container">
-          <p className="signature-label">Assinatura do Cliente:</p>
-          <SignatureCanvas
-            penColor="black"
-            canvasProps={{ 
-              height: 100, // Altura pode ser mantida aqui ou no CSS
-              className: 'sigCanvas', 
-              style: { 
-                backgroundColor: 'white', 
-                border: '1px solid #444', 
-                borderRadius: '4px' 
-              } 
-            }}
-            ref={sigCanvas}
-          />
-          <button type="button" onClick={() => sigCanvas.current.clear()} className="clear-signature-button">
-            Limpar Assinatura
-          </button>
-        </div>
+            <div className="signature-section-container">
+              <p className="signature-label">Assinatura do Cliente:</p>
+              <SignatureCanvas
+                penColor="black"
+                canvasProps={{
+                  height: 100,
+                  className: 'sigCanvas',
+                  style: {
+                    backgroundColor: 'white',
+                    border: '1px solid #444',
+                    borderRadius: '4px'
+                  }
+                }}
+                ref={sigCanvas}
+              />
+              <button type="button" onClick={() => sigCanvas.current.clear()} className="clear-signature-button">
+                Limpar Assinatura
+              </button>
+            </div>
+            <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF!</button>
+          </>
+        )}
 
         <button type="submit">Gerar Resumo da OS!</button>
-        <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF!</button>
+        <button type="button" onClick={limparFormulario} style={{ marginTop: '10px' }}>Limpar Formulário</button>
       </form>
     </>
   );
