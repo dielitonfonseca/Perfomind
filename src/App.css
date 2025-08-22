@@ -325,8 +325,53 @@ form#osForm {
 }
 
 .sigCanvas {
-    width: 100%; /* Faz o canvas ocupar 100% da largura do seu PARENT (`.signature-section-container`) */
-    height: 100px; /* Mantém uma altura fixa */
+    height: 100px; /* Mantém a altura fixa, mas será ajustada via JS */
     border-radius: 4px;
-    touch-action: none; /* Importante para dispositivos touch, evita scroll */
+    touch-action: none; /* Mantém a propriedade para evitar rolagem */
+}
+
+/* Estilos para o Pop-up (Modal/Dialog) */
+
+.dialog-overlay {
+  position: fixed; /* Cobre a tela inteira */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7); /* Fundo escuro semi-transparente */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000; /* Garante que fique acima de todo o conteúdo */
+}
+
+.dialog-content {
+  background-color: white;
+  padding: 24px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dialog-header {
+  text-align: center;
+}
+
+.dialog-header h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+
+.dialog-header p {
+  margin-bottom: 0;
+  color: #555;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
 }
