@@ -21,7 +21,7 @@ function Form({ setFormData }) {
   const [isSamsung, setIsSamsung] = useState(true);
   const [modelo, setModelo] = useState('');
   const [serial, setSerial] = useState('');
-  const [dataVisita, setDataVisita] = useState('');
+  const [dataVisita, setDataVisita] = useState(new Date().toISOString().split("T")[0]);
   const [tipoAparelho, setTipoAparelho] = useState('VD');
   const [tipoChecklist, setTipoChecklist] = useState('PREENCHIDO');
   const [isScannerOpen, setScannerOpen] = useState(false);
@@ -103,7 +103,7 @@ Observações: ${observacoes}
     setObservacoes('');
     setModelo('');
     setSerial('');
-    setDataVisita('');
+    setDataVisita(new Date().toISOString().split("T")[0]);
     setTipoAparelho('VD');
     setTipoChecklist('PREENCHIDO');
     if (sigCanvas.current) {
@@ -155,8 +155,19 @@ Observações: ${observacoes}
       return;
     }
 
-    const defeitoFinal = isSamsung ? defeitoSelect : defeitoManual;
-    const reparoFinal = isSamsung ? reparoSelect : reparoManual;
+    let defeitoFinal;
+    let reparoFinal;
+
+    if (isSamsung) {
+        const defeitoElement = document.getElementById('defeitoSelect');
+        defeitoFinal = defeitoElement.options[defeitoElement.selectedIndex].text;
+        const reparoElement = document.getElementById('reparoSelect');
+        reparoFinal = reparoElement.options[reparoElement.selectedIndex].text;
+    } else {
+        defeitoFinal = defeitoManual;
+        reparoFinal = reparoManual;
+    }
+
     const pecaFinal = isSamsung ? peca : '';
 
     const resultadoTexto = gerarTextoResultado({
@@ -212,13 +223,168 @@ Observações: ${observacoes}
   };
 
   const preencherPDF = async () => {
-    // ...
+    let baseFileName = '';
+
+    switch (tipoAparelho) {
+      case 'VD':
+        baseFileName = `/Checklist DTV_IH41_${tipoChecklist}.pdf`;
+        break;
+      case 'WSM':
+        baseFileName = `/checklist_WSM_${tipoChecklist}.pdf`;
+        break;
+      case 'REF':
+        baseFileName = `/checklist_REF_${tipoChecklist}.pdf`;
+        break;
+      case 'RAC':
+        baseFileName = `/checklist_RAC_${tipoChecklist}.pdf`;
+        break;
+      default:
+        alert('Tipo de aparelho inválido.');
+        return;
+    }
+
+    try {
+      const existingPdfBytes = await fetch(baseFileName).then(res => res.arrayBuffer());
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+      const page = pdfDoc.getPages()[0];
+      const { width, height } = page.getSize();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+      const drawText = (text, x, y, size = 10) => {
+        page.drawText(String(text), {
+          x,
+          y,
+          size,
+          font,
+          color: rgb(0, 0, 0)
+        });
+      };
+
+      let pngImage = null;
+      if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+        const assinaturaDataUrl = sigCanvas.current.getCanvas().toDataURL('image/png');
+        pngImage = await pdfDoc.embedPng(assinaturaDataUrl);
+      } else {
+        console.log("Canvas de assinatura vazio. Assinatura não será adicionada ao PDF.");
+      }
+
+      const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
+      const defeitoFinal = isSamsung ? defeitoSelect : defeitoManual;
+      const reparoFinal = isSamsung ? reparoSelect : reparoManual;
+
+      const textoObservacoes = `Observações: ${observacoes}`;
+      const textoDefeito = isSamsung ? `Código de Defeito: ${defeitoFinal}` : `Defeito: ${defeitoFinal}`;
+      const textoReparo = isSamsung ? `Código de Reparo: ${reparoFinal}` : `Peça necessária: ${reparoFinal}`;
+
+      const offset = 10;
+
+      // Formata a data para dd/mm/aaaa
+      let dataFormatada = '';
+      if (dataVisita) {
+        const [ano, mes, dia] = dataVisita.split('-');
+        dataFormatada = `${dia}/${mes}/${ano}`;
+      }
+
+      if (tipoAparelho === 'VD') {
+        drawText("FERNANDES COMUNICAÇÕES", 119, height - 72);
+        drawText(cliente, 90, height - 85);
+        drawText(modelo, 90, height - 100);
+        drawText(serial, 420, height - 87);
+        drawText(numero, 420, height - 72);
+        drawText(dataFormatada, 450, height - 100); // Usando a data formatada
+        drawText(tecnicoFinal, 120, height - 800);
+
+        drawText(textoDefeito, 70, height - 750);
+        drawText(textoReparo, 70, height - 750 - offset);
+        drawText(textoObservacoes, 70, height - 750 - (offset * 2));
+
+        if (pngImage) {
+          page.drawImage(pngImage, {
+            x: 390,
+            y: height - 820,
+            width: 150,
+            height: 40
+          });
+        }
+      } else if (tipoAparelho === 'WSM') {
+        drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
+        drawText(`${cliente}`, 77, height - 125);
+        drawText(`${modelo}`, 77, height - 137);
+        drawText(`${serial}`, 590, height - 125);
+        drawText(`${numero}`, 590, height - 110);
+        drawText(`${dataFormatada}`, 605, height - 137); // Usando a data formatada
+        drawText(`${tecnicoFinal}`, 110, height - 534);
+
+        drawText(textoDefeito, 65, height - 470);
+        drawText(textoReparo, 65, height - 470 - offset);
+        drawText(textoObservacoes, 65, height - 470 - (offset * 2));
+
+        if (pngImage) {
+          page.drawImage(pngImage, {
+            x: 550,
+            y: height - 550,
+            width: 150,
+            height: 40
+          });
+        }
+      } else if (tipoAparelho === 'REF') {
+        drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
+        drawText(`${cliente}`, 87, height - 130);
+        drawText(`${modelo}`, 87, height - 147);
+        drawText(`${serial}`, 660, height - 132);
+        drawText(`${numero}`, 660, height - 115);
+        drawText(`${dataFormatada}`, 665, height - 147); // Usando a data formatada
+        drawText(`${tecnicoFinal}`, 114, height - 538);
+
+        drawText(textoDefeito, 65, height - 465);
+        drawText(textoReparo, 65, height - 465 - offset);
+        drawText(textoObservacoes, 65, height - 465 - (offset * 2));
+
+        if (pngImage) {
+          page.drawImage(pngImage, {
+            x: 600,
+            y: height - 550,
+            width: 150,
+            height: 40
+          });
+        }
+      } else if (tipoAparelho === 'RAC') {
+        drawText("FERNANDES COMUNICAÇÕES", 140, height - 0);
+        drawText(`${cliente}`, 87, height - 116);
+        drawText(`${modelo}`, 87, height - 127);
+        drawText(`${serial}`, 532, height - 116);
+        drawText(`${numero}`, 537, height - 105);
+        drawText(`${dataFormatada}`, 552, height - 128); // Usando a data formatada
+        drawText(`${tecnicoFinal}`, 114, height - 533);
+
+        drawText(textoDefeito, 65, height - 470);
+        drawText(textoReparo, 65, height - 470 - offset);
+        drawText(textoObservacoes, 65, height - 470 - (offset * 2));
+
+        if (pngImage) {
+          page.drawImage(pngImage, {
+            x: 540,
+            y: height - 550,
+            width: 150,
+            height: 40
+          });
+        }
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const nomeArquivo = numero?.trim() || 'Checklist';
+      saveAs(blob, `${nomeArquivo}.pdf`);
+      alert("PDF gerado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao carregar ou preencher o PDF:", error);
+      alert("Erro ao gerar o PDF. Verifique se o arquivo base está disponível para o tipo de aparelho e checklist selecionados.");
+    }
   };
   
   const handleScanSuccess = useCallback((decodedText) => {
     setSerial(decodedText);
     setScannerOpen(false);
-    alert(`Código escaneado: ${decodedText}`);
   }, []);
 
   return (
@@ -313,8 +479,53 @@ Observações: ${observacoes}
               value={defeitoSelect}
               onChange={(e) => setDefeitoSelect(e.target.value)}
             >
-              <option value="">Selecione o defeito</option>
-              {/* ... (opções de defeito) ... */}
+                <option value="">Selecione o defeito</option>
+                <option value="AXP">AXP - Uso inadequado do consumidor (VD)</option>
+                <option value="HXX">HXX - Uso inadequado do consumidor (DA)</option>
+                <option value="AXX">AXX - Outro problema</option>
+                <option value="CMK">CMK - Tela danificada pelo consumidor</option>
+                <option value="AA1">AA1 - Não Liga</option>
+                <option value="AA2">AA2 - Desliga sozinho</option>
+                <option value="AA3">AA3 - Liga/Desliga aleatoriamente</option>
+                <option value="AA4">AA4 - Desliga intermitente</option>
+                <option value="AA5">AA5 - Fonte de alimentação instável</option>
+                <option value="AB1">AB1 - Não indica funções no painel</option>
+                <option value="AB8">AB8 - Lampada/LED não funciona</option>
+                <option value="AM3">AM3 - Controle remoto não funciona</option>
+                <option value="AN4">AN4 - Wi-Fi não funciona</option>
+                <option value="AB2">AB2 - Display intermitente</option>
+                <option value="AB3">AB3 - Sujeira no display</option>
+                <option value="AE1">AE1 - Sem imagem</option>
+                <option value="AE2">AE2 - Imagem intermitente</option>
+                <option value="AE3">AE3 - Linhas horizontais</option>
+                <option value="AE4">AE4 - Linhas verticais</option>
+                <option value="AEN">AEN - Imagem distorcida</option>
+                <option value="AG1">AG1 - Sem som</option>
+                <option value="AG2">AG2 - Som intermitente</option>
+                <option value="AG4">AG4 - Som distorcido</option>
+                <option value="AM3">AM3 - Controle remoto não funciona</option>
+                <option value="TLA">AG2 - WiFi não funciona</option>
+                <option value="HE1">HE1 - Não Refrigera</option>
+                <option value="HE3">HE3 - Refrigeração excessiva</option>
+                <option value="HE7">HE7 - Dreno bloqueado</option>
+                <option value="HE9">HE9 - Vazamento de fluido refrigerante</option>
+                <option value="HF3">HF3 - Não sai água do dispenser</option>
+                <option value="HF6">HF6 - Não produz gelo</option>
+                <option value="HG2">HG2 - Não entra água</option>
+                <option value="HG4">HG4 - Não centrifuga</option>
+                <option value="HG5">HG4 - Não seca</option>
+                <option value="HG6">HG6 - Transborda água</option>
+                <option value="HG7">HG7 - Fornecimento de sabão/amaciante com defeito</option>
+                <option value="HKF">HKF - Ruído mecânico</option>
+                <option value="HK9">HK9 - Barulho excessivo</option>
+                <option value="HK2">HK2 - Barulho no ventilador</option>
+                <option value="HK3">HK3 - Barulho no compressor</option>
+                <option value="HK4">HK4 - Barulho nos tubos</option>
+                <option value="HLC">HLC - Compressor não funciona</option>
+                <option value="HLN">HLN - Porta não abre</option>
+                <option value="HA1">HA1 - Não Liga (DA)</option>
+                <option value="HG1">HG1 - Não Lava</option>
+                <option value="nao_achei">Não achei a opção certa</option>
             </select>
 
             <label htmlFor="reparoSelect">Código de Reparo:</label>
@@ -323,8 +534,19 @@ Observações: ${observacoes}
               value={reparoSelect}
               onChange={(e) => setReparoSelect(e.target.value)}
             >
-              <option value="">Selecione o reparo</option>
-             {/* ... (opções de reparo) ... */}
+                <option value="">Selecione o reparo</option>
+                <option value="X09">X09 - Orçamento recusado!</option>
+                <option value="A04">A04 - Troca de PCB</option>
+                <option value="A10">A10 - Troca do LCD</option>
+                <option value="A01">A01 - Componente Elétrico</option>
+                <option value="A02">A02 - Componente Mecânico</option>
+                <option value="A03">A03 - Substituição de item cosmético</option>
+                <option value="A17">A17 - Substituição do sensor</option>
+                <option value="X01">X01 - NDF Nenhum defeito encontrado</option>
+                <option value="A15">A15 - Troca de compressor</option>
+                <option value="A17">A17 - Troca do sensor</option>
+                <option value="A20">A20 - Troca de acessório (ex. controle)</option>
+                <option value="nao_achei">Não achei a opção certa</option>
             </select>
 
             <label htmlFor="peca">Peça substituída:</label>
@@ -414,8 +636,8 @@ Observações: ${observacoes}
                   height: 100,
                   className: 'sigCanvas',
                   style: {
-                    backgroundColor: 'white',
-                    border: '1px solid #444',
+                    backgroundColor: '#444',
+                    border: '1px solid #e0dbdbff',
                     borderRadius: '4px'
                   }
                 }}
