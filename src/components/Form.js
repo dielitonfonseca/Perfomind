@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
-import SignatureCanvas from 'react-signature-canvas';
 import { ScanLine } from 'lucide-react';
 import ScannerDialog from './ScannerDialog';
+<<<<<<< HEAD
 import SignatureDialog from './SignatureDialog'; // Importa o novo componente
+=======
+import SignatureDialog from './SignatureDialog';
+>>>>>>> Testes_
 
 function Form({ setFormData }) {
+  // Estados existentes
   const [numero, setNumero] = useState('');
   const [cliente, setCliente] = useState('');
   const [tecnicoSelect, setTecnicoSelect] = useState('');
@@ -26,17 +30,28 @@ function Form({ setFormData }) {
   const [tipoAparelho, setTipoAparelho] = useState('VD');
   const [tipoChecklist, setTipoChecklist] = useState('PREENCHIDO');
   const [isScannerOpen, setScannerOpen] = useState(false);
+<<<<<<< HEAD
   const [isSignatureDialogOpen, setSignatureDialogOpen] = useState(false); // Estado para controlar o popup de assinatura
   const [signature, setSignature] = useState(null); // Estado para armazenar a assinatura
+=======
+  const [isSignatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [signature, setSignature] = useState(null);
+  const [ppidPecaUsada, setPpidPecaUsada] = useState('');
+  const [ppidPecaNova, setPpidPecaNova] = useState('');
+  const [scannerTarget, setScannerTarget] = useState('');
 
-  const sigCanvas = useRef(null);
-  const sigContainer = useRef(null);
+  // Estados para Orçamento e Limpeza
+  const [orcamentoAprovado, setOrcamentoAprovado] = useState(false);
+  const [orcamentoValor, setOrcamentoValor] = useState('');
+  const [limpezaAprovada, setLimpezaAprovada] = useState(false);
+>>>>>>> Testes_
+
 
   useEffect(() => {
     const tecnicoSalvo = localStorage.getItem('tecnico');
     if (tecnicoSalvo) {
       if (
-        ['Dieliton Fonseca', 'Matheus Lindoso', 'Daniel Moraes', 'Yago Giordanni', 'Pablo Henrique', 'Wallysson Cesar', 'João Pedro', 'Claudio Cris', 'Matheus Henrique'].includes(tecnicoSalvo)
+        ['Dieliton Fonseca', 'Matheus Lindoso', 'Yago Giordanny', 'Pablo Henrique', 'Wallysson Cesar', 'João Pedro', 'Claudio Cris', 'Matheus Henrique'].includes(tecnicoSalvo)
       ) {
         setTecnicoSelect(tecnicoSalvo);
         setTecnicoManual('');
@@ -55,23 +70,6 @@ function Form({ setFormData }) {
     }
   }, [tecnicoSelect, tecnicoManual]);
 
-  useEffect(() => {
-    function resizeCanvas() {
-      if (sigCanvas.current && sigContainer.current) {
-        const canvas = sigCanvas.current.getCanvas();
-        const containerWidth = sigContainer.current.offsetWidth;
-        canvas.width = containerWidth;
-        canvas.height = 100;
-        sigCanvas.current.clear();
-      }
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, []);
-
   const validarNumero = (num, tipo) => {
     const padraoSamsung = /^417\d{7}$/;
     const padraoAssurant = /^\d{8}$/;
@@ -81,16 +79,23 @@ function Form({ setFormData }) {
   };
 
   const gerarTextoResultado = (data) => {
-    const { numero, cliente, tecnico, defeito, reparo, peca, observacoes, tipo } = data;
+    const { numero, cliente, tecnico, defeito, reparo, peca, ppidPecaNova, ppidPecaUsada, observacoes, tipo } = data;
     const linhaDefeito = tipo === 'samsung' ? `Código de defeito: ${defeito}` : `Defeito: ${defeito}`;
     const linhaReparo = tipo === 'samsung' ? `Código de reparo: ${reparo}` : `Solicitação de peça: ${reparo}`;
+    
+    const linhaPecaUsada = peca ? `Peça usada: ${peca}` : '';
+    const linhaPpidNova = ppidPecaNova ? `PPID peça NOVA: ${ppidPecaNova}` : '';
+    const linhaPpidUsada = ppidPecaUsada ? `PPID peça USADA: ${ppidPecaUsada}` : '';
+    
+    const detalhesPecas = [linhaPecaUsada, linhaPpidNova, linhaPpidUsada].filter(Boolean).join('\n');
+
     return `
 OS: ${numero}
 Cliente: ${cliente}
 Técnico: ${tecnico}
 ${linhaDefeito}
 ${linhaReparo}
-${peca ? `Peça usada: ${peca}` : ''}
+${detalhesPecas}
 Observações: ${observacoes}
 . . . . .`;
   };
@@ -110,6 +115,7 @@ Observações: ${observacoes}
     setTipoAparelho('VD');
     setTipoChecklist('PREENCHIDO');
     setSignature(null);
+<<<<<<< HEAD
     if (sigCanvas.current) {
       sigCanvas.current.clear();
     }
@@ -139,6 +145,13 @@ Observações: ${observacoes}
       };
       await setDoc(statsDocRef, initialData);
     }
+=======
+    setPpidPecaNova('');
+    setPpidPecaUsada('');
+    setOrcamentoAprovado(false);
+    setOrcamentoValor('');
+    setLimpezaAprovada(false);
+>>>>>>> Testes_
   };
 
   const handleSubmit = async (event) => {
@@ -159,6 +172,14 @@ Observações: ${observacoes}
       return;
     }
 
+<<<<<<< HEAD
+=======
+    if (orcamentoAprovado && (!orcamentoValor || parseFloat(orcamentoValor) <= 0)) {
+        alert("Por favor, insira um valor válido para o orçamento aprovado.");
+        return;
+    }
+
+>>>>>>> Testes_
     let defeitoFinal;
     let reparoFinal;
 
@@ -181,6 +202,8 @@ Observações: ${observacoes}
       defeito: defeitoFinal,
       reparo: reparoFinal,
       peca: pecaFinal,
+      ppidPecaNova: ppidPecaNova,
+      ppidPecaUsada: ppidPecaUsada,
       observacoes,
       tipo: tipoOS,
     });
@@ -188,6 +211,7 @@ Observações: ${observacoes}
     setFormData(resultadoTexto);
 
     try {
+      // --- SALVAR DADOS DA OS ---
       const today = new Date();
       const dateString = today.getFullYear() + '-' +
         String(today.getMonth() + 1).padStart(2, '0') + '-' +
@@ -212,17 +236,59 @@ Observações: ${observacoes}
         defeito: defeitoFinal,
         reparo: reparoFinal,
         pecaSubstituida: pecaFinal,
+        ppidPecaNova: ppidPecaNova,
+        ppidPecaUsada: ppidPecaUsada,
         observacoes: observacoes,
         dataGeracao: serverTimestamp(),
         dataGeracaoLocal: new Date().toISOString()
       });
 
-      await updateTechnicianStats(tecnicoFinal, tipoOS);
+      // --- ATUALIZAR ESTATÍSTICAS DO TÉCNICO (LÓGICA INTEGRADA) ---
+      const statsDocRef = doc(db, 'technicianStats', tecnicoFinal);
+      const statsDoc = await getDoc(statsDocRef);
 
-      console.log('Ordem de serviço cadastrada no Firebase com sucesso!');
+      const statsUpdateData = {
+        totalOS: increment(1),
+        lastUpdate: serverTimestamp(),
+        samsungOS: increment(tipoOS === 'samsung' ? 1 : 0),
+        assurantOS: increment(tipoOS === 'assurant' ? 1 : 0),
+      };
+
+      if (orcamentoAprovado && orcamentoValor) {
+          const valorNumerico = parseFloat(orcamentoValor);
+          if (!isNaN(valorNumerico)) {
+              statsUpdateData.orc_aprovado = increment(valorNumerico);
+              statsUpdateData.lista_orcamentos_aprovados = arrayUnion(numeroOS);
+          }
+      }
+
+      if (limpezaAprovada) {
+          statsUpdateData.limpezas_realizadas = increment(1);
+          statsUpdateData.lista_limpezas = arrayUnion(numeroOS);
+      }
+      
+      if (statsDoc.exists()) {
+        await updateDoc(statsDocRef, statsUpdateData);
+      } else {
+        const initialStatsData = {
+          totalOS: 1,
+          samsungOS: tipoOS === 'samsung' ? 1 : 0,
+          assurantOS: tipoOS === 'assurant' ? 1 : 0,
+          orc_aprovado: 0,
+          limpezas_realizadas: 0,
+          lista_orcamentos_aprovados: [],
+          lista_limpezas: [],
+          ...statsUpdateData, 
+        };
+        await setDoc(statsDocRef, initialStatsData);
+      }
+
+      console.log('Ordem de serviço e estatísticas atualizadas com sucesso!');
+      alert('Resumo gerado e dados salvos com sucesso!');
+
     } catch (e) {
       console.error("Erro ao adicionar documento: ", e);
-      alert('Erro ao cadastrar ordem de serviço no Firebase. Verifique o console para mais detalhes.');
+      alert('Erro ao cadastrar dados no Firebase. Verifique o console para mais detalhes.');
     }
   };
 
@@ -255,6 +321,7 @@ Observações: ${observacoes}
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
       const drawText = (text, x, y, size = 10) => {
+<<<<<<< HEAD
         page.drawText(String(text), {
           x,
           y,
@@ -262,11 +329,15 @@ Observações: ${observacoes}
           font,
           color: rgb(0, 0, 0)
         });
+=======
+        page.drawText(String(text), { x, y, size, font, color: rgb(0, 0, 0) });
+>>>>>>> Testes_
       };
 
       let pngImage = null;
       if (signature) {
         pngImage = await pdfDoc.embedPng(signature);
+<<<<<<< HEAD
       } else if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
         const assinaturaDataUrl = sigCanvas.current.getCanvas().toDataURL('image/png');
         pngImage = await pdfDoc.embedPng(assinaturaDataUrl);
@@ -275,6 +346,12 @@ Observações: ${observacoes}
       }
 
 
+=======
+      } else {
+        console.log("Nenhuma assinatura capturada para adicionar ao PDF.");
+      }
+
+>>>>>>> Testes_
       const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
       const defeitoFinal = isSamsung ? defeitoSelect : defeitoManual;
       const reparoFinal = isSamsung ? reparoSelect : reparoManual;
@@ -284,8 +361,11 @@ Observações: ${observacoes}
       const textoReparo = isSamsung ? `Código de Reparo: ${reparoFinal}` : `Peça necessária: ${reparoFinal}`;
 
       const offset = 10;
+<<<<<<< HEAD
 
       // Formata a data para dd/mm/aaaa
+=======
+>>>>>>> Testes_
       let dataFormatada = '';
       if (dataVisita) {
         const [ano, mes, dia] = dataVisita.split('-');
@@ -298,6 +378,7 @@ Observações: ${observacoes}
         drawText(modelo, 90, height - 100);
         drawText(serial, 420, height - 87);
         drawText(numero, 420, height - 72);
+<<<<<<< HEAD
         drawText(dataFormatada, 450, height - 100); // Usando a data formatada
         drawText(tecnicoFinal, 120, height - 800);
 
@@ -375,6 +456,15 @@ Observações: ${observacoes}
             width: 150,
             height: 40
           });
+=======
+        drawText(dataFormatada, 450, height - 100);
+        drawText(tecnicoFinal, 120, height - 800);
+        drawText(textoDefeito, 70, height - 750);
+        drawText(textoReparo, 70, height - 750 - offset);
+        drawText(textoObservacoes, 70, height - 750 - (offset * 2));
+        if (pngImage) {
+          page.drawImage(pngImage, { x: 390, y: height - 820, width: 150, height: 40 });
+>>>>>>> Testes_
         }
       }
 
@@ -385,14 +475,38 @@ Observações: ${observacoes}
       alert("PDF gerado com sucesso!");
     } catch (error) {
       console.error("Erro ao carregar ou preencher o PDF:", error);
+<<<<<<< HEAD
       alert("Erro ao gerar o PDF. Verifique se o arquivo base está disponível para o tipo de aparelho e checklist selecionados.");
+=======
+      alert("Erro ao gerar o PDF. Verifique se o arquivo base está disponível.");
+>>>>>>> Testes_
     }
   };
   
   const handleScanSuccess = useCallback((decodedText) => {
-    setSerial(decodedText);
+    if (scannerTarget === 'serial') {
+      setSerial(decodedText);
+    } else if (scannerTarget === 'ppidNova') {
+      setPpidPecaNova(decodedText);
+    } else if (scannerTarget === 'ppidUsada') {
+      setPpidPecaUsada(decodedText);
+    }
     setScannerOpen(false);
+<<<<<<< HEAD
   }, []);
+=======
+  }, [scannerTarget]);
+
+  const openScanner = (target) => {
+    setScannerTarget(target);
+    setScannerOpen(true);
+  };
+
+  const handleSaveSignature = (signatureData) => {
+    setSignature(signatureData);
+    setSignatureDialogOpen(false);
+  };
+>>>>>>> Testes_
 
   const handleSaveSignature = (signatureData) => {
     setSignature(signatureData);
@@ -414,7 +528,10 @@ Observações: ${observacoes}
           onClose={() => setSignatureDialogOpen(false)}
         />
       )}
+<<<<<<< HEAD
 
+=======
+>>>>>>> Testes_
       <div className="checkbox-container">
         <label>
           <input
@@ -471,8 +588,7 @@ Observações: ${observacoes}
           <option value="João Pedro">João Pedro</option>
           <option value="Pablo Henrique">Pablo Henrique</option>
           <option value="Matheus Henrique">Matheus Henrique</option>
-          <option value="Daniel Moraes">Daniel</option>
-          <option value="Yago Giordanni">Yago Giordanni</option>
+          <option value="Yago Giordanny">Yago Giordanny</option>
           <option value="nao_achei">Não achei a opção certa</option>
         </select>
 
@@ -577,6 +693,32 @@ Observações: ${observacoes}
               value={peca}
               onChange={(e) => setPeca(e.target.value)}
             />
+            
+            <label htmlFor="ppidPecaNova">PPID Peça NOVA:</label>
+            <div className="input-with-button">
+              <input
+                name="ppidPecaNova"
+                placeholder="Escaneie o código da peça nova"
+                onChange={(e) => setPpidPecaNova(e.target.value)}
+                value={ppidPecaNova}
+              />
+              <button type="button" className="scan-button" onClick={() => openScanner('ppidNova')}>
+                <ScanLine size={20} />
+              </button>
+            </div>
+
+            <label htmlFor="ppidPecaUsada">PPID Peça USADA:</label>
+            <div className="input-with-button">
+              <input
+                name="ppidPecaUsada"
+                placeholder="Escaneie o código da peça usada"
+                onChange={(e) => setPpidPecaUsada(e.target.value)}
+                value={ppidPecaUsada}
+              />
+              <button type="button" className="scan-button" onClick={() => openScanner('ppidUsada')}>
+                <ScanLine size={20} />
+              </button>
+            </div>
           </>
         )}
 
@@ -601,12 +743,45 @@ Observações: ${observacoes}
             />
           </>
         )}
+        
+        <div className="checkbox-container extra-options">
+            <label>
+                <input
+                    type="checkbox"
+                    checked={orcamentoAprovado}
+                    onChange={() => setOrcamentoAprovado(!orcamentoAprovado)}
+                />{' '}
+                Orçamento aprovado e pago 
+            </label>
+            {orcamentoAprovado && (
+                <div className="valor-container">
+                    <label htmlFor="orcamentoValor">Valor (R$):</label>
+                    <input
+                        type="number"
+                        id="orcamentoValor"
+                        value={orcamentoValor}
+                        onChange={(e) => setOrcamentoValor(e.target.value)}
+                        onWheel={(e) => e.target.blur()} 
+                        placeholder="Ex: 550.00"
+                        step="0.01"
+                    />
+                </div>
+            )}
+            <label>
+                <input
+                    type="checkbox"
+                    checked={limpezaAprovada}
+                    onChange={() => setLimpezaAprovada(!limpezaAprovada)}
+                />{' '}
+                Higienização aprovada e feita
+            </label>
+        </div>
 
         <label htmlFor="observacoes">Observações:</label>
         <textarea
           id="observacoes"
           rows="4"
-          placeholder="Ex: Pagamento pendente, Cliente aguarda nota fiscal, etc"
+          placeholder="Ex: Pagamento pendente..."
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         ></textarea>
@@ -640,7 +815,7 @@ Observações: ${observacoes}
                 onChange={(e) => setSerial(e.target.value)}
                 value={serial}
               />
-              <button type="button" className="scan-button" onClick={() => setScannerOpen(true)}>
+              <button type="button" className="scan-button" onClick={() => openScanner('serial')}>
                 <ScanLine size={20} />
               </button>
             </div>
@@ -650,16 +825,33 @@ Observações: ${observacoes}
 
             <div className="signature-section-container">
                 <button type="button" onClick={() => setSignatureDialogOpen(true)}>
+<<<<<<< HEAD
                   Coletar Assinatura
                 </button>
                 {signature && <img src={signature} alt="Assinatura do cliente" style={{ border: '1px solid #e0dbdbff', borderRadius: '4px', marginTop: '10px' }} />}
+=======
+                  Coletar Assinatura ✍️
+                </button>
+                {signature && (
+                  <img 
+                    src={signature} 
+                    alt="Assinatura do cliente" 
+                    style={{ 
+                      border: '1px solid #e0dbdbff', 
+                      borderRadius: '4px', 
+                      marginTop: '10px',
+                      width: '50%' 
+                    }} 
+                  />
+                )}
+>>>>>>> Testes_
             </div>
-            <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF!</button>
+            <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF 📋</button>
           </>
         )}
 
-        <button type="submit">Gerar Resumo da OS!</button>
-        <button type="button" onClick={limparFormulario} style={{ marginTop: '10px' }}>Limpar Formulário</button>
+        <button type="submit">Gerar Resumo da OS✅</button>
+        <button type="button" onClick={limparFormulario} style={{ marginTop: '10px' }}>Limpar Formulário 🧹</button>
       </form>
     </>
   );

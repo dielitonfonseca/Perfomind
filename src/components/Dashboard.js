@@ -2,7 +2,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label, Cell } from 'recharts';
+
+// Paleta de cores para o gráfico de barras
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF1919', '#19B2FF', '#FFC719'];
 
 const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [0, 'auto'] }) => {
   if (!data || data.length === 0) {
@@ -108,6 +111,10 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  
+  const [orcamentoData, setOrcamentoData] = useState([]);
+  const [limpezaData, setLimpezaData] = useState([]);
+
 
   useEffect(() => {
     const handleResize = () => {
@@ -126,16 +133,30 @@ function Dashboard() {
 
     const unsubscribes = [];
     
-    // Novo listener para a coleção agregada
     const technicianStatsCollectionRef = collection(db, 'technicianStats');
     const q = query(technicianStatsCollectionRef, orderBy('totalOS', 'desc'));
 
     const unsubscribeTechnicianStats = onSnapshot(q, (snapshot) => {
-      const sortedTechnicians = snapshot.docs.map(doc => ({
+      const allTechnicians = snapshot.docs.map(doc => ({
         name: doc.id,
         ...doc.data(),
       }));
-      setTechnicianRanking(sortedTechnicians);
+      
+      setTechnicianRanking(allTechnicians);
+
+      const filteredOrcamento = allTechnicians
+        .filter(tech => tech.orc_aprovado && tech.orc_aprovado > 0)
+        .map(tech => ({
+          name: tech.name,
+          'Valor Orçamento (R$)': tech.orc_aprovado.toFixed(2)
+        }));
+      setOrcamentoData(filteredOrcamento);
+
+      const filteredLimpezas = allTechnicians
+        .filter(tech => tech.limpezas_realizadas && tech.limpezas_realizadas > 0)
+        .sort((a, b) => b.limpezas_realizadas - a.limpezas_realizadas);
+      setLimpezaData(filteredLimpezas);
+
       setLoading(false);
     }, (err) => {
       console.error("Erro no listener de estatísticas de técnicos:", err);
@@ -257,11 +278,6 @@ function Dashboard() {
   const ssrVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR VD': parseFloat(d['SSR VD']) })), [kpiData]);
   const ssrDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR DA': parseFloat(d['SSR DA']) })), [kpiData]);
 
-  const treinamentosChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Treinamentos': parseFloat(d['Treinamentos']) })), [kpiData]);
-  const orcamentoChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'Orçamento': parseFloat(d['Orçamento']) })), [kpiData]);
-  const vendasStorePlusChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'VENDAS STORE+': parseFloat(d['VENDAS STORE+']) })), [kpiData]);
-
-
   if (loading) {
     return <div className="no-data-message">Carregando dados do Firebase...</div>;
   }
@@ -272,7 +288,7 @@ function Dashboard() {
 
   return (
     <div className="output">
-      <h3>Ranking de Ordens de Serviço por Técnico </h3>
+      <h3>Ranking de Ordens de Serviço ⚡</h3>
       {technicianRanking.length === 0 ? (
         <p className="no-data-message">Nenhuma ordem de serviço encontrada para o ranking.</p>
       ) : (
@@ -303,13 +319,66 @@ function Dashboard() {
               ))}
             </tbody>
           </table>
-
         </>
       )}
 
-     
+      <div className="dashboard-section">
+          <h3>Orçamento por Técnico 💲</h3>
+          {orcamentoData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+                <BarChart
+                    data={orcamentoData}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
+                >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} />
+                    <YAxis />
+                    <Tooltip formatter={(value) => `R$ ${parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />  
+                    <Bar dataKey="Valor Orçamento (R$)">
+                        {orcamentoData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="no-data-message">Nenhum dado de orçamento encontrado.</p>
+          )}
+      </div>
 
-      <h3>KPIs de Desempenho </h3>
+      <div className="dashboard-section">
+        <h3>Ranking de Higienizações 🪥</h3>
+        {limpezaData.length > 0 ? (
+            <table className="dashboard-table" style={{
+                width: '80%',
+                borderCollapse: 'collapse',
+                marginTop: '20px',
+                marginLeft: 'auto',
+                marginRight: 'auto'
+              }}>
+                <thead>
+                    <tr style={{ background: '#333' }}>
+                        <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Posição</th>
+                        <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Técnico</th>
+                        <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Limpezas Realizadas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {limpezaData.map((tech, index) => (
+                    <tr key={tech.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
+                        <td style={{ padding: '10px', border: '1px solid #555' }}>{index + 1}º</td>
+                        <td style={{ padding: '10px', border: '1px solid #555' }}>{tech.name}</td>
+                        <td style={{ padding: '10px', border: '1px solid #555' }}>{tech.limpezas_realizadas || 0}</td>
+                    </tr>
+                    ))}
+                </tbody>
+            </table>
+        ) : (
+            <p className="no-data-message">Nenhum dado de limpeza encontrado.</p>
+        )}
+      </div>
+
+      <h3>KPIs de Desempenho 🚀</h3>
       <div className="kpi-grid">
         <KPIChart
           data={ltpvdChartData}
@@ -325,7 +394,7 @@ function Dashboard() {
 
         <KPIChart
           data={ltpdaChartData}
-          title=" LTP DA % "
+          title=" LTP DA % ⬇️"
           dataKeys={[{ dataKey: 'LTP DA %', stroke: '#ff7300', name: 'LTP DA %' }]}
           meta={[
             { value: 17.4, stroke: '#00C49F', label: 'Meta: 17.4%' },
@@ -333,10 +402,10 @@ function Dashboard() {
           ]}
           tooltipContent={<CustomTooltip />}
         />
-
+        
         <KPIChart
           data={exltpvdChartData}
-          title=" EX LTP VD % "
+          title=" EX LTP VD % ⬇️"
           dataKeys={[{ dataKey: 'EX LTP VD %', stroke: '#3366FF', name: 'EX LTP VD %' }]}
           meta={{ value: 1.44, stroke: '#FFCC00', label: 'Meta: 1.44%' }}
           tooltipContent={<CustomTooltip />}
@@ -345,7 +414,7 @@ function Dashboard() {
 
         <KPIChart
           data={exltpdaChartData}
-          title=" EX LTP DA % "
+          title=" EX LTP DA % ⬇️"
           dataKeys={[{ dataKey: 'EX LPT DA %', stroke: '#CC0066', name: 'EX LTP DA %' }]}
           meta={{ value: 1.50, stroke: '#99FF00', label: 'Meta: 1.50%' }}
           tooltipContent={<CustomTooltip />}
@@ -354,7 +423,7 @@ function Dashboard() {
 
         <KPIChart
           data={rrrVdChartData}
-          title=" RRR VD % "
+          title=" RRR VD % ⬇️"
           dataKeys={[{ dataKey: 'RRR VD %', stroke: '#8A2BE2', name: 'RRR VD %' }]}
           meta={[
             { value: 2.8, stroke: '#FFCC00', label: 'Meta: 2.8%' },
@@ -366,7 +435,7 @@ function Dashboard() {
 
         <KPIChart
           data={rrrDaChartData}
-          title=" RRR DA % "
+          title=" RRR DA % ⬇️"
           dataKeys={[{ dataKey: 'RRR DA %', stroke: '#A52A2A', name: 'RRR DA %' }]}
           meta={[
             { value: 5, stroke: '#FF4500', label: 'Meta: 5%' },
@@ -378,7 +447,7 @@ function Dashboard() {
 
         <KPIChart
           data={ssrVdChartData}
-          title=" SSR VD % "
+          title=" SSR VD % ⬇️"
           dataKeys={[{ dataKey: 'SSR VD', stroke: '#BA55D3', name: 'SSR VD' }]}
           meta={{ value: 0.4, stroke: '#FFD700', label: 'Meta: 0.4%' }}
           tooltipContent={<CustomTooltip />}
@@ -386,7 +455,7 @@ function Dashboard() {
 
         <KPIChart
           data={ssrDaChartData}
-          title=" SSR DA % "
+          title=" SSR DA % ⬇️"
           dataKeys={[{ dataKey: 'SSR DA', stroke: '#FF00FF', name: 'SSR DA' }]}
           meta={{ value: 1.1, stroke: '#FFA07A', label: 'Meta: 1.1%' }}
           tooltipContent={<CustomTooltip />}
@@ -394,7 +463,7 @@ function Dashboard() {
 
         <KPIChart
           data={ecoRepairVdChartData}
-          title=" ECO REPAIR VD % "
+          title=" ECO REPAIR VD % ⬆️"
           dataKeys={[{ dataKey: 'ECO REPAIR VD', stroke: '#4CAF50', name: 'ECO REPAIR VD' }]}
           meta={{ value: 60, stroke: '#FF5722', label: 'Meta: 60%' }}
           tooltipContent={<CustomTooltip />}
@@ -403,7 +472,7 @@ function Dashboard() {
 
         <KPIChart
           data={ftcHappyCallChartData}
-          title=" FTC HAPPY CALL % "
+          title=" FTC HAPPY CALL % ⬆️"
           dataKeys={[{ dataKey: 'FTC HAPPY CALL', stroke: '#9C27B0', name: 'FTC HAPPY CALL' }]}
           meta={{ value: 88, stroke: '#FFEB3B', label: 'Meta: 88%' }}
           tooltipContent={<CustomTooltip />}
@@ -412,7 +481,7 @@ function Dashboard() {
 
         <KPIChart
           data={poInHomeD1ChartData}
-          title=" PO IN HOME D+1 % "
+          title=" PO IN HOME D+1 % ⬆️"
           dataKeys={[{ dataKey: 'PO IN HOME D+1', stroke: '#3F51B5', name: 'PO IN HOME D+1' }]}
           meta={{ value: 70, stroke: '#FFC107', label: 'Meta: 70%' }}
           tooltipContent={<CustomTooltip />}
@@ -421,7 +490,7 @@ function Dashboard() {
 
         <KPIChart
           data={firstVisitVdChartData}
-          title=" 1ST VISIT VD % "
+          title=" 1ST VISIT VD % ⬆️"
           dataKeys={[{ dataKey: '1ST VISIT VD', stroke: '#FFBB28', name: '1ST VISIT VD' }]}
           meta={{ value: 20, stroke: '#FF0000', label: 'Meta: 20%' }}
           tooltipContent={<CustomTooltip />}
@@ -430,7 +499,7 @@ function Dashboard() {
 
         <KPIChart
           data={inHomeD1ChartData}
-          title=" IN HOME D+1 % "
+          title=" IN HOME D+1 % ⬆️"
           dataKeys={[{ dataKey: 'IN HOME D+1', stroke: '#00C49F', name: 'IN HOME D+1' }]}
           meta={{ value: 20, stroke: '#FF4081', label: 'Meta: 20%' }}
           tooltipContent={<CustomTooltip />}
@@ -439,7 +508,7 @@ function Dashboard() {
 
         <KPIChart
           data={rnpsVdChartData}
-          title=" R-NPS VD % "
+          title=" R-NPS VD % ⬆️"
           dataKeys={[{ dataKey: 'R-NPS VD', stroke: '#4682B4', name: 'R-NPS VD' }]}
           meta={{ value: 80, stroke: '#9ACD32', label: 'Meta: 80%' }}
           tooltipContent={<CustomTooltip />}
@@ -448,7 +517,7 @@ function Dashboard() {
 
         <KPIChart
           data={rnpsDaChartData}
-          title=" R-NPS DA % "
+          title=" R-NPS DA % ⬆️"
           dataKeys={[{ dataKey: 'R-NPS DA', stroke: '#FF4500', name: 'R-NPS DA' }]}
           meta={{ value: 78, stroke: '#ADFF2F', label: 'Meta: 78%' }}
           tooltipContent={<CustomTooltip />}
@@ -456,71 +525,10 @@ function Dashboard() {
         />
       </div>
 
-      ---
-
+      
       {isMobile ? (
         <>
-          <h2>Outras Métricas por Semana</h2>
-          {kpiData.length === 0 ? (
-            <p className="no-data-message">Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 8 semanas.</p>
-          ) : (
-            kpiData.map((dataPoint, index) => (
-              <div key={dataPoint.name} style={{ marginBottom: '15px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
-                <h1 style={{ textAlign: 'center' }}>{dataPoint.name}</h1>
-                <p style={{ textAlign: 'center' }}>Orçamento: {dataPoint['Orçamento'] || 'N/A'}</p>
-                <p style={{ textAlign: 'center' }}>Treinamentos %: {dataPoint['Treinamentos'] || 'N/A'}</p>
-                <p style={{ textAlign: 'center' }}>Vendas Store+: {dataPoint['VENDAS STORE+'] || 'N/A'}</p>
-              </div>
-            ))
-          )}
-        </>
-      ) : (
-        <>
-          <h3>Outras Métricas por Semana </h3>
-          {kpiData.length === 0 ? (
-            <p className="no-data-message">Nenhum dado de Orçamento, Treinamentos ou Vendas Store+ encontrado para as últimas 8 semanas.</p>
-          ) : (
-            <table style={{
-              width: '80%',
-              borderCollapse: 'collapse',
-              marginTop: '20px',
-              marginLeft: 'auto',
-              marginRight: 'auto'
-            }}>
-              <thead>
-                <tr style={{ background: '#333' }}>
-                  <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Semana</th>
-                  <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Orçamento </th>
-                  <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Treinamentos % </th>
-                  <th style={{ padding: '10px', border: '1px solid #555', textAlign: 'left' }}>Vendas Store+ </th>
-                </tr>
-              </thead>
-              <tbody>
-                {kpiData.map((dataPoint, index) => (
-                  <tr key={dataPoint.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
-                    <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.name}</td>
-                    <td style={{ padding: '10px', border: '1px solid #555' }}>
-                      {dataPoint['Orçamento'] || 'N/A'}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #555' }}>
-                      {dataPoint['Treinamentos'] || 'N/A'}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #555' }}>
-                      {dataPoint['VENDAS STORE+'] || 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </>
-      )}
-
-      ---
-
-      {isMobile ? (
-        <>
-          <h1 style={{ color: '#e0e0e0', marginTop: '30px', marginBottom: '20px', textAlign: 'center' }}>Pontuação Semanal</h1>
+          <h1 style={{ color: '#e0e0e0', marginTop: '30px', marginBottom: '20px', textAlign: 'center' }}>Histórico Semanal 📈</h1>
           {weeklyScores.length === 0 ? (
             <p className="no-data-message">Nenhuma pontuação semanal encontrada.</p>
           ) : (
@@ -537,7 +545,7 @@ function Dashboard() {
         </>
       ) : (
         <>
-          <h3>Pontuação Semanal </h3>
+          <h3>Histórico Semanal 📈 </h3>
           {weeklyScores.length === 0 ? (
             <p className="no-data-message">Nenhuma pontuação semanal encontrada.</p>
           ) : (
@@ -562,7 +570,7 @@ function Dashboard() {
                   <tr key={dataPoint.name} style={{ background: index % 2 === 0 ? '#2a2a2a' : '#3a3a3a' }}>
                     <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.name}</td>
                     <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.score}</td>
-                    <td style={{ padding: '10px', border: '1px solid #512' }}>{dataPoint.accelerators}</td>
+                    <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.accelerators}</td>
                     <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.detractors}</td>
                     <td style={{ padding: '10px', border: '1px solid #555' }}>{dataPoint.finalScore.toFixed(1)}</td>
                   </tr>

@@ -376,9 +376,12 @@ form#osForm {
   justify-content: flex-end;
 }
 
+<<<<<<< HEAD
 /* ... (estilos existentes) */
 
 /* Estilos para o Pop-up (Modal/Dialog) de Assinatura */
+=======
+>>>>>>> Testes_
 
 .dialog-content.signature-dialog {
   width: 90vw;
@@ -404,6 +407,10 @@ form#osForm {
 }
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> Testes_
 .dialog-overlay {
   position: fixed; /* Cobre a tela inteira */
   top: 0;
@@ -448,4 +455,13 @@ form#osForm {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+<<<<<<< HEAD
+=======
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+>>>>>>> Testes_
 }
