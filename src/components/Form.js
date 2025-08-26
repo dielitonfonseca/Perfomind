@@ -8,6 +8,7 @@ import ScannerDialog from './ScannerDialog';
 import SignatureDialog from './SignatureDialog';
 
 function Form({ setFormData }) {
+  // Estados existentes
   const [numero, setNumero] = useState('');
   const [cliente, setCliente] = useState('');
   const [tecnicoSelect, setTecnicoSelect] = useState('');
@@ -27,6 +28,11 @@ function Form({ setFormData }) {
   const [isScannerOpen, setScannerOpen] = useState(false);
   const [isSignatureDialogOpen, setSignatureDialogOpen] = useState(false);
   const [signature, setSignature] = useState(null);
+
+  // Novos estados para PPID
+  const [ppidPecaUsada, setPpidPecaUsada] = useState('');
+  const [ppidPecaNova, setPpidPecaNova] = useState('');
+  const [scannerTarget, setScannerTarget] = useState(''); // Para saber qual campo preencher
 
   useEffect(() => {
     const tecnicoSalvo = localStorage.getItem('tecnico');
@@ -60,16 +66,23 @@ function Form({ setFormData }) {
   };
 
   const gerarTextoResultado = (data) => {
-    const { numero, cliente, tecnico, defeito, reparo, peca, observacoes, tipo } = data;
+    const { numero, cliente, tecnico, defeito, reparo, peca, ppidPecaNova, ppidPecaUsada, observacoes, tipo } = data;
     const linhaDefeito = tipo === 'samsung' ? `Código de defeito: ${defeito}` : `Defeito: ${defeito}`;
     const linhaReparo = tipo === 'samsung' ? `Código de reparo: ${reparo}` : `Solicitação de peça: ${reparo}`;
+    
+    const linhaPecaUsada = peca ? `Peça usada: ${peca}` : '';
+    const linhaPpidNova = ppidPecaNova ? `PPID peça NOVA: ${ppidPecaNova}` : '';
+    const linhaPpidUsada = ppidPecaUsada ? `PPID peça USADA: ${ppidPecaUsada}` : '';
+    
+    const detalhesPecas = [linhaPecaUsada, linhaPpidNova, linhaPpidUsada].filter(Boolean).join('\n');
+
     return `
 OS: ${numero}
 Cliente: ${cliente}
 Técnico: ${tecnico}
 ${linhaDefeito}
 ${linhaReparo}
-${peca ? `Peça usada: ${peca}` : ''}
+${detalhesPecas}
 Observações: ${observacoes}
 . . . . .`;
   };
@@ -89,6 +102,8 @@ Observações: ${observacoes}
     setTipoAparelho('VD');
     setTipoChecklist('PREENCHIDO');
     setSignature(null);
+    setPpidPecaNova('');
+    setPpidPecaUsada('');
   };
 
   const updateTechnicianStats = async (tecnicoNome, tipoOS) => {
@@ -135,8 +150,6 @@ Observações: ${observacoes}
       return;
     }
 
-    // --- MUDANÇA PRINCIPAL AQUI ---
-    // Captura o texto completo da descrição, não apenas o código.
     let defeitoFinal;
     let reparoFinal;
 
@@ -159,6 +172,8 @@ Observações: ${observacoes}
       defeito: defeitoFinal,
       reparo: reparoFinal,
       peca: pecaFinal,
+      ppidPecaNova: ppidPecaNova,
+      ppidPecaUsada: ppidPecaUsada,
       observacoes,
       tipo: tipoOS,
     });
@@ -190,6 +205,8 @@ Observações: ${observacoes}
         defeito: defeitoFinal,
         reparo: reparoFinal,
         pecaSubstituida: pecaFinal,
+        ppidPecaNova: ppidPecaNova,
+        ppidPecaUsada: ppidPecaUsada,
         observacoes: observacoes,
         dataGeracao: serverTimestamp(),
         dataGeracaoLocal: new Date().toISOString()
@@ -272,48 +289,6 @@ Observações: ${observacoes}
         if (pngImage) {
           page.drawImage(pngImage, { x: 390, y: height - 820, width: 150, height: 40 });
         }
-      } else if (tipoAparelho === 'WSM') {
-        drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
-        drawText(`${cliente}`, 77, height - 125);
-        drawText(`${modelo}`, 77, height - 137);
-        drawText(`${serial}`, 590, height - 125);
-        drawText(`${numero}`, 590, height - 110);
-        drawText(`${dataFormatada}`, 605, height - 137);
-        drawText(`${tecnicoFinal}`, 110, height - 534);
-        drawText(textoDefeito, 65, height - 470);
-        drawText(textoReparo, 65, height - 470 - offset);
-        drawText(textoObservacoes, 65, height - 470 - (offset * 2));
-        if (pngImage) {
-          page.drawImage(pngImage, { x: 550, y: height - 550, width: 150, height: 40 });
-        }
-      } else if (tipoAparelho === 'REF') {
-        drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
-        drawText(`${cliente}`, 87, height - 130);
-        drawText(`${modelo}`, 87, height - 147);
-        drawText(`${serial}`, 660, height - 132);
-        drawText(`${numero}`, 660, height - 115);
-        drawText(`${dataFormatada}`, 665, height - 147);
-        drawText(`${tecnicoFinal}`, 114, height - 538);
-        drawText(textoDefeito, 65, height - 465);
-        drawText(textoReparo, 65, height - 465 - offset);
-        drawText(textoObservacoes, 65, height - 465 - (offset * 2));
-        if (pngImage) {
-          page.drawImage(pngImage, { x: 600, y: height - 550, width: 150, height: 40 });
-        }
-      } else if (tipoAparelho === 'RAC') {
-        drawText("FERNANDES COMUNICAÇÕES", 140, height - 0);
-        drawText(`${cliente}`, 87, height - 116);
-        drawText(`${modelo}`, 87, height - 127);
-        drawText(`${serial}`, 532, height - 116);
-        drawText(`${numero}`, 537, height - 105);
-        drawText(`${dataFormatada}`, 552, height - 128);
-        drawText(`${tecnicoFinal}`, 114, height - 533);
-        drawText(textoDefeito, 65, height - 470);
-        drawText(textoReparo, 65, height - 470 - offset);
-        drawText(textoObservacoes, 65, height - 470 - (offset * 2));
-        if (pngImage) {
-          page.drawImage(pngImage, { x: 540, y: height - 550, width: 150, height: 40 });
-        }
       }
 
       const pdfBytes = await pdfDoc.save();
@@ -328,9 +303,20 @@ Observações: ${observacoes}
   };
   
   const handleScanSuccess = useCallback((decodedText) => {
-    setSerial(decodedText);
+    if (scannerTarget === 'serial') {
+      setSerial(decodedText);
+    } else if (scannerTarget === 'ppidNova') {
+      setPpidPecaNova(decodedText);
+    } else if (scannerTarget === 'ppidUsada') {
+      setPpidPecaUsada(decodedText);
+    }
     setScannerOpen(false);
-  }, []);
+  }, [scannerTarget]);
+
+  const openScanner = (target) => {
+    setScannerTarget(target);
+    setScannerOpen(true);
+  };
 
   const handleSaveSignature = (signatureData) => {
     setSignature(signatureData);
@@ -513,6 +499,32 @@ Observações: ${observacoes}
               value={peca}
               onChange={(e) => setPeca(e.target.value)}
             />
+            
+            <label htmlFor="ppidPecaNova">PPID Peça NOVA:</label>
+            <div className="input-with-button">
+              <input
+                name="ppidPecaNova"
+                placeholder="Escaneie o código da peça nova"
+                onChange={(e) => setPpidPecaNova(e.target.value)}
+                value={ppidPecaNova}
+              />
+              <button type="button" className="scan-button" onClick={() => openScanner('ppidNova')}>
+                <ScanLine size={20} />
+              </button>
+            </div>
+
+            <label htmlFor="ppidPecaUsada">PPID Peça USADA:</label>
+            <div className="input-with-button">
+              <input
+                name="ppidPecaUsada"
+                placeholder="Escaneie o código da peça usada"
+                onChange={(e) => setPpidPecaUsada(e.target.value)}
+                value={ppidPecaUsada}
+              />
+              <button type="button" className="scan-button" onClick={() => openScanner('ppidUsada')}>
+                <ScanLine size={20} />
+              </button>
+            </div>
           </>
         )}
 
@@ -542,7 +554,7 @@ Observações: ${observacoes}
         <textarea
           id="observacoes"
           rows="4"
-          placeholder="Ex: Pagamento pendente, Cliente aguarda nota fiscal, etc"
+          placeholder="Ex: Pagamento pendente..."
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         ></textarea>
@@ -576,7 +588,7 @@ Observações: ${observacoes}
                 onChange={(e) => setSerial(e.target.value)}
                 value={serial}
               />
-              <button type="button" className="scan-button" onClick={() => setScannerOpen(true)}>
+              <button type="button" className="scan-button" onClick={() => openScanner('serial')}>
                 <ScanLine size={20} />
               </button>
             </div>
