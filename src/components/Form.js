@@ -6,6 +6,7 @@ import { saveAs } from 'file-saver';
 import SignatureCanvas from 'react-signature-canvas';
 import { ScanLine } from 'lucide-react';
 import ScannerDialog from './ScannerDialog';
+import SignatureDialog from './SignatureDialog'; // Importa o novo componente
 
 function Form({ setFormData }) {
   const [numero, setNumero] = useState('');
@@ -25,6 +26,8 @@ function Form({ setFormData }) {
   const [tipoAparelho, setTipoAparelho] = useState('VD');
   const [tipoChecklist, setTipoChecklist] = useState('PREENCHIDO');
   const [isScannerOpen, setScannerOpen] = useState(false);
+  const [isSignatureDialogOpen, setSignatureDialogOpen] = useState(false); // Estado para controlar o popup de assinatura
+  const [signature, setSignature] = useState(null); // Estado para armazenar a assinatura
 
   const sigCanvas = useRef(null);
   const sigContainer = useRef(null);
@@ -106,6 +109,7 @@ Observações: ${observacoes}
     setDataVisita(new Date().toISOString().split("T")[0]);
     setTipoAparelho('VD');
     setTipoChecklist('PREENCHIDO');
+    setSignature(null);
     if (sigCanvas.current) {
       sigCanvas.current.clear();
     }
@@ -261,12 +265,15 @@ Observações: ${observacoes}
       };
 
       let pngImage = null;
-      if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+      if (signature) {
+        pngImage = await pdfDoc.embedPng(signature);
+      } else if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
         const assinaturaDataUrl = sigCanvas.current.getCanvas().toDataURL('image/png');
         pngImage = await pdfDoc.embedPng(assinaturaDataUrl);
       } else {
         console.log("Canvas de assinatura vazio. Assinatura não será adicionada ao PDF.");
       }
+
 
       const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
       const defeitoFinal = isSamsung ? defeitoSelect : defeitoManual;
@@ -387,6 +394,12 @@ Observações: ${observacoes}
     setScannerOpen(false);
   }, []);
 
+  const handleSaveSignature = (signatureData) => {
+    setSignature(signatureData);
+    setSignatureDialogOpen(false);
+  };
+
+
   return (
     <>
       {isScannerOpen && (
@@ -395,6 +408,13 @@ Observações: ${observacoes}
           onClose={() => setScannerOpen(false)}
         />
       )}
+      {isSignatureDialogOpen && (
+        <SignatureDialog
+          onSave={handleSaveSignature}
+          onClose={() => setSignatureDialogOpen(false)}
+        />
+      )}
+
       <div className="checkbox-container">
         <label>
           <input
@@ -628,24 +648,11 @@ Observações: ${observacoes}
             <label htmlFor="dataVisita">Data da Visita:</label>
             <input name="dataVisita" type="date" onChange={(e) => setDataVisita(e.target.value)} value={dataVisita} />
 
-            <div className="signature-section-container" ref={sigContainer}>
-              <p className="signature-label">Assinatura do Cliente:</p>
-              <SignatureCanvas
-                penColor="black"
-                canvasProps={{
-                  height: 100,
-                  className: 'sigCanvas',
-                  style: {
-                    backgroundColor: '#444',
-                    border: '1px solid #e0dbdbff',
-                    borderRadius: '4px'
-                  }
-                }}
-                ref={sigCanvas}
-              />
-              <button type="button" onClick={() => sigCanvas.current.clear()} className="clear-signature-button">
-                Limpar Assinatura
-              </button>
+            <div className="signature-section-container">
+                <button type="button" onClick={() => setSignatureDialogOpen(true)}>
+                  Coletar Assinatura
+                </button>
+                {signature && <img src={signature} alt="Assinatura do cliente" style={{ border: '1px solid #e0dbdbff', borderRadius: '4px', marginTop: '10px' }} />}
             </div>
             <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF!</button>
           </>
