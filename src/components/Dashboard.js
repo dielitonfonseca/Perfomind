@@ -527,7 +527,7 @@ function Dashboard() {
       
       {isMobile ? (
         <>
-          <h1 style={{ color: '#e0e0e0', marginTop: '30px', marginBottom: '20px', textAlign: 'center' }}>Pontuação Semanal </h1>
+          <h1 style={{ color: '#e0e0e0', marginTop: '30px', marginBottom: '20px', textAlign: 'center' }}>Histórico Semanal 📈</h1>
           {weeklyScores.length === 0 ? (
             <p className="no-data-message">Nenhuma pontuação semanal encontrada.</p>
           ) : (
