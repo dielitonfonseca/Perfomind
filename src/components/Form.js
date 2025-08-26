@@ -5,11 +5,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import { ScanLine } from 'lucide-react';
 import ScannerDialog from './ScannerDialog';
-<<<<<<< HEAD
-import SignatureDialog from './SignatureDialog'; // Importa o novo componente
-=======
 import SignatureDialog from './SignatureDialog';
->>>>>>> Testes_
 
 function Form({ setFormData }) {
   // Estados existentes
@@ -30,10 +26,6 @@ function Form({ setFormData }) {
   const [tipoAparelho, setTipoAparelho] = useState('VD');
   const [tipoChecklist, setTipoChecklist] = useState('PREENCHIDO');
   const [isScannerOpen, setScannerOpen] = useState(false);
-<<<<<<< HEAD
-  const [isSignatureDialogOpen, setSignatureDialogOpen] = useState(false); // Estado para controlar o popup de assinatura
-  const [signature, setSignature] = useState(null); // Estado para armazenar a assinatura
-=======
   const [isSignatureDialogOpen, setSignatureDialogOpen] = useState(false);
   const [signature, setSignature] = useState(null);
   const [ppidPecaUsada, setPpidPecaUsada] = useState('');
@@ -44,7 +36,6 @@ function Form({ setFormData }) {
   const [orcamentoAprovado, setOrcamentoAprovado] = useState(false);
   const [orcamentoValor, setOrcamentoValor] = useState('');
   const [limpezaAprovada, setLimpezaAprovada] = useState(false);
->>>>>>> Testes_
 
 
   useEffect(() => {
@@ -115,43 +106,11 @@ Observações: ${observacoes}
     setTipoAparelho('VD');
     setTipoChecklist('PREENCHIDO');
     setSignature(null);
-<<<<<<< HEAD
-    if (sigCanvas.current) {
-      sigCanvas.current.clear();
-    }
-  };
-
-  const updateTechnicianStats = async (tecnicoNome, tipoOS) => {
-    const statsDocRef = doc(db, 'technicianStats', tecnicoNome);
-    const statsDoc = await getDoc(statsDocRef);
-
-    if (statsDoc.exists()) {
-      const updateData = {
-        totalOS: increment(1),
-        lastUpdate: serverTimestamp(),
-      };
-      if (tipoOS === 'samsung') {
-        updateData.samsungOS = increment(1);
-      } else if (tipoOS === 'assurant') {
-        updateData.assurantOS = increment(1);
-      }
-      await updateDoc(statsDocRef, updateData);
-    } else {
-      const initialData = {
-        totalOS: 1,
-        samsungOS: tipoOS === 'samsung' ? 1 : 0,
-        assurantOS: tipoOS === 'assurant' ? 1 : 0,
-        lastUpdate: serverTimestamp(),
-      };
-      await setDoc(statsDocRef, initialData);
-    }
-=======
     setPpidPecaNova('');
     setPpidPecaUsada('');
     setOrcamentoAprovado(false);
     setOrcamentoValor('');
     setLimpezaAprovada(false);
->>>>>>> Testes_
   };
 
   const handleSubmit = async (event) => {
@@ -172,14 +131,11 @@ Observações: ${observacoes}
       return;
     }
 
-<<<<<<< HEAD
-=======
     if (orcamentoAprovado && (!orcamentoValor || parseFloat(orcamentoValor) <= 0)) {
         alert("Por favor, insira um valor válido para o orçamento aprovado.");
         return;
     }
 
->>>>>>> Testes_
     let defeitoFinal;
     let reparoFinal;
 
@@ -321,37 +277,16 @@ Observações: ${observacoes}
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
       const drawText = (text, x, y, size = 10) => {
-<<<<<<< HEAD
-        page.drawText(String(text), {
-          x,
-          y,
-          size,
-          font,
-          color: rgb(0, 0, 0)
-        });
-=======
         page.drawText(String(text), { x, y, size, font, color: rgb(0, 0, 0) });
->>>>>>> Testes_
       };
 
       let pngImage = null;
       if (signature) {
         pngImage = await pdfDoc.embedPng(signature);
-<<<<<<< HEAD
-      } else if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
-        const assinaturaDataUrl = sigCanvas.current.getCanvas().toDataURL('image/png');
-        pngImage = await pdfDoc.embedPng(assinaturaDataUrl);
-      } else {
-        console.log("Canvas de assinatura vazio. Assinatura não será adicionada ao PDF.");
-      }
-
-
-=======
       } else {
         console.log("Nenhuma assinatura capturada para adicionar ao PDF.");
       }
 
->>>>>>> Testes_
       const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
       const defeitoFinal = isSamsung ? defeitoSelect : defeitoManual;
       const reparoFinal = isSamsung ? reparoSelect : reparoManual;
@@ -361,11 +296,6 @@ Observações: ${observacoes}
       const textoReparo = isSamsung ? `Código de Reparo: ${reparoFinal}` : `Peça necessária: ${reparoFinal}`;
 
       const offset = 10;
-<<<<<<< HEAD
-
-      // Formata a data para dd/mm/aaaa
-=======
->>>>>>> Testes_
       let dataFormatada = '';
       if (dataVisita) {
         const [ano, mes, dia] = dataVisita.split('-');
@@ -378,85 +308,6 @@ Observações: ${observacoes}
         drawText(modelo, 90, height - 100);
         drawText(serial, 420, height - 87);
         drawText(numero, 420, height - 72);
-<<<<<<< HEAD
-        drawText(dataFormatada, 450, height - 100); // Usando a data formatada
-        drawText(tecnicoFinal, 120, height - 800);
-
-        drawText(textoDefeito, 70, height - 750);
-        drawText(textoReparo, 70, height - 750 - offset);
-        drawText(textoObservacoes, 70, height - 750 - (offset * 2));
-
-        if (pngImage) {
-          page.drawImage(pngImage, {
-            x: 390,
-            y: height - 820,
-            width: 150,
-            height: 40
-          });
-        }
-      } else if (tipoAparelho === 'WSM') {
-        drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
-        drawText(`${cliente}`, 77, height - 125);
-        drawText(`${modelo}`, 77, height - 137);
-        drawText(`${serial}`, 590, height - 125);
-        drawText(`${numero}`, 590, height - 110);
-        drawText(`${dataFormatada}`, 605, height - 137); // Usando a data formatada
-        drawText(`${tecnicoFinal}`, 110, height - 534);
-
-        drawText(textoDefeito, 65, height - 470);
-        drawText(textoReparo, 65, height - 470 - offset);
-        drawText(textoObservacoes, 65, height - 470 - (offset * 2));
-
-        if (pngImage) {
-          page.drawImage(pngImage, {
-            x: 550,
-            y: height - 550,
-            width: 150,
-            height: 40
-          });
-        }
-      } else if (tipoAparelho === 'REF') {
-        drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
-        drawText(`${cliente}`, 87, height - 130);
-        drawText(`${modelo}`, 87, height - 147);
-        drawText(`${serial}`, 660, height - 132);
-        drawText(`${numero}`, 660, height - 115);
-        drawText(`${dataFormatada}`, 665, height - 147); // Usando a data formatada
-        drawText(`${tecnicoFinal}`, 114, height - 538);
-
-        drawText(textoDefeito, 65, height - 465);
-        drawText(textoReparo, 65, height - 465 - offset);
-        drawText(textoObservacoes, 65, height - 465 - (offset * 2));
-
-        if (pngImage) {
-          page.drawImage(pngImage, {
-            x: 600,
-            y: height - 550,
-            width: 150,
-            height: 40
-          });
-        }
-      } else if (tipoAparelho === 'RAC') {
-        drawText("FERNANDES COMUNICAÇÕES", 140, height - 0);
-        drawText(`${cliente}`, 87, height - 116);
-        drawText(`${modelo}`, 87, height - 127);
-        drawText(`${serial}`, 532, height - 116);
-        drawText(`${numero}`, 537, height - 105);
-        drawText(`${dataFormatada}`, 552, height - 128); // Usando a data formatada
-        drawText(`${tecnicoFinal}`, 114, height - 533);
-
-        drawText(textoDefeito, 65, height - 470);
-        drawText(textoReparo, 65, height - 470 - offset);
-        drawText(textoObservacoes, 65, height - 470 - (offset * 2));
-
-        if (pngImage) {
-          page.drawImage(pngImage, {
-            x: 540,
-            y: height - 550,
-            width: 150,
-            height: 40
-          });
-=======
         drawText(dataFormatada, 450, height - 100);
         drawText(tecnicoFinal, 120, height - 800);
         drawText(textoDefeito, 70, height - 750);
@@ -464,7 +315,6 @@ Observações: ${observacoes}
         drawText(textoObservacoes, 70, height - 750 - (offset * 2));
         if (pngImage) {
           page.drawImage(pngImage, { x: 390, y: height - 820, width: 150, height: 40 });
->>>>>>> Testes_
         }
       }
 
@@ -475,11 +325,7 @@ Observações: ${observacoes}
       alert("PDF gerado com sucesso!");
     } catch (error) {
       console.error("Erro ao carregar ou preencher o PDF:", error);
-<<<<<<< HEAD
-      alert("Erro ao gerar o PDF. Verifique se o arquivo base está disponível para o tipo de aparelho e checklist selecionados.");
-=======
       alert("Erro ao gerar o PDF. Verifique se o arquivo base está disponível.");
->>>>>>> Testes_
     }
   };
   
@@ -492,9 +338,6 @@ Observações: ${observacoes}
       setPpidPecaUsada(decodedText);
     }
     setScannerOpen(false);
-<<<<<<< HEAD
-  }, []);
-=======
   }, [scannerTarget]);
 
   const openScanner = (target) => {
@@ -506,13 +349,6 @@ Observações: ${observacoes}
     setSignature(signatureData);
     setSignatureDialogOpen(false);
   };
->>>>>>> Testes_
-
-  const handleSaveSignature = (signatureData) => {
-    setSignature(signatureData);
-    setSignatureDialogOpen(false);
-  };
-
 
   return (
     <>
@@ -528,10 +364,6 @@ Observações: ${observacoes}
           onClose={() => setSignatureDialogOpen(false)}
         />
       )}
-<<<<<<< HEAD
-
-=======
->>>>>>> Testes_
       <div className="checkbox-container">
         <label>
           <input
@@ -825,11 +657,6 @@ Observações: ${observacoes}
 
             <div className="signature-section-container">
                 <button type="button" onClick={() => setSignatureDialogOpen(true)}>
-<<<<<<< HEAD
-                  Coletar Assinatura
-                </button>
-                {signature && <img src={signature} alt="Assinatura do cliente" style={{ border: '1px solid #e0dbdbff', borderRadius: '4px', marginTop: '10px' }} />}
-=======
                   Coletar Assinatura ✍️
                 </button>
                 {signature && (
@@ -844,7 +671,6 @@ Observações: ${observacoes}
                     }} 
                   />
                 )}
->>>>>>> Testes_
             </div>
             <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF 📋</button>
           </>
