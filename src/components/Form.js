@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import { ScanLine } from 'lucide-react';
@@ -28,11 +28,15 @@ function Form({ setFormData }) {
   const [isScannerOpen, setScannerOpen] = useState(false);
   const [isSignatureDialogOpen, setSignatureDialogOpen] = useState(false);
   const [signature, setSignature] = useState(null);
-
-  // Novos estados para PPID
   const [ppidPecaUsada, setPpidPecaUsada] = useState('');
   const [ppidPecaNova, setPpidPecaNova] = useState('');
-  const [scannerTarget, setScannerTarget] = useState(''); // Para saber qual campo preencher
+  const [scannerTarget, setScannerTarget] = useState('');
+
+  // Estados para Orçamento e Limpeza
+  const [orcamentoAprovado, setOrcamentoAprovado] = useState(false);
+  const [orcamentoValor, setOrcamentoValor] = useState('');
+  const [limpezaAprovada, setLimpezaAprovada] = useState(false);
+
 
   useEffect(() => {
     const tecnicoSalvo = localStorage.getItem('tecnico');
@@ -104,32 +108,9 @@ Observações: ${observacoes}
     setSignature(null);
     setPpidPecaNova('');
     setPpidPecaUsada('');
-  };
-
-  const updateTechnicianStats = async (tecnicoNome, tipoOS) => {
-    const statsDocRef = doc(db, 'technicianStats', tecnicoNome);
-    const statsDoc = await getDoc(statsDocRef);
-
-    if (statsDoc.exists()) {
-      const updateData = {
-        totalOS: increment(1),
-        lastUpdate: serverTimestamp(),
-      };
-      if (tipoOS === 'samsung') {
-        updateData.samsungOS = increment(1);
-      } else if (tipoOS === 'assurant') {
-        updateData.assurantOS = increment(1);
-      }
-      await updateDoc(statsDocRef, updateData);
-    } else {
-      const initialData = {
-        totalOS: 1,
-        samsungOS: tipoOS === 'samsung' ? 1 : 0,
-        assurantOS: tipoOS === 'assurant' ? 1 : 0,
-        lastUpdate: serverTimestamp(),
-      };
-      await setDoc(statsDocRef, initialData);
-    }
+    setOrcamentoAprovado(false);
+    setOrcamentoValor('');
+    setLimpezaAprovada(false);
   };
 
   const handleSubmit = async (event) => {
@@ -148,6 +129,11 @@ Observações: ${observacoes}
     if (!clienteNome || !tecnicoFinal) {
       alert("Preencha os campos obrigatórios: Cliente e Técnico.");
       return;
+    }
+
+    if (orcamentoAprovado && (!orcamentoValor || parseFloat(orcamentoValor) <= 0)) {
+        alert("Por favor, insira um valor válido para o orçamento aprovado.");
+        return;
     }
 
     let defeitoFinal;
@@ -181,6 +167,7 @@ Observações: ${observacoes}
     setFormData(resultadoTexto);
 
     try {
+      // --- SALVAR DADOS DA OS ---
       const today = new Date();
       const dateString = today.getFullYear() + '-' +
         String(today.getMonth() + 1).padStart(2, '0') + '-' +
@@ -212,12 +199,52 @@ Observações: ${observacoes}
         dataGeracaoLocal: new Date().toISOString()
       });
 
-      await updateTechnicianStats(tecnicoFinal, tipoOS);
+      // --- ATUALIZAR ESTATÍSTICAS DO TÉCNICO (LÓGICA INTEGRADA) ---
+      const statsDocRef = doc(db, 'technicianStats', tecnicoFinal);
+      const statsDoc = await getDoc(statsDocRef);
 
-      console.log('Ordem de serviço cadastrada no Firebase com sucesso!');
+      const statsUpdateData = {
+        totalOS: increment(1),
+        lastUpdate: serverTimestamp(),
+        samsungOS: increment(tipoOS === 'samsung' ? 1 : 0),
+        assurantOS: increment(tipoOS === 'assurant' ? 1 : 0),
+      };
+
+      if (orcamentoAprovado && orcamentoValor) {
+          const valorNumerico = parseFloat(orcamentoValor);
+          if (!isNaN(valorNumerico)) {
+              statsUpdateData.orc_aprovado = increment(valorNumerico);
+              statsUpdateData.lista_orcamentos_aprovados = arrayUnion(numeroOS);
+          }
+      }
+
+      if (limpezaAprovada) {
+          statsUpdateData.limpezas_realizadas = increment(1);
+          statsUpdateData.lista_limpezas = arrayUnion(numeroOS);
+      }
+      
+      if (statsDoc.exists()) {
+        await updateDoc(statsDocRef, statsUpdateData);
+      } else {
+        const initialStatsData = {
+          totalOS: 1,
+          samsungOS: tipoOS === 'samsung' ? 1 : 0,
+          assurantOS: tipoOS === 'assurant' ? 1 : 0,
+          orc_aprovado: 0,
+          limpezas_realizadas: 0,
+          lista_orcamentos_aprovados: [],
+          lista_limpezas: [],
+          ...statsUpdateData, 
+        };
+        await setDoc(statsDocRef, initialStatsData);
+      }
+
+      console.log('Ordem de serviço e estatísticas atualizadas com sucesso!');
+      alert('Resumo gerado e dados salvos com sucesso!');
+
     } catch (e) {
       console.error("Erro ao adicionar documento: ", e);
-      alert('Erro ao cadastrar ordem de serviço no Firebase. Verifique o console para mais detalhes.');
+      alert('Erro ao cadastrar dados no Firebase. Verifique o console para mais detalhes.');
     }
   };
 
@@ -548,6 +575,39 @@ Observações: ${observacoes}
             />
           </>
         )}
+        
+        <div className="checkbox-container extra-options">
+            <label>
+                <input
+                    type="checkbox"
+                    checked={orcamentoAprovado}
+                    onChange={() => setOrcamentoAprovado(!orcamentoAprovado)}
+                />{' '}
+                Orçamento aprovado e pago 
+            </label>
+            {orcamentoAprovado && (
+                <div className="valor-container">
+                    <label htmlFor="orcamentoValor">Valor (R$):</label>
+                    <input
+                        type="number"
+                        id="orcamentoValor"
+                        value={orcamentoValor}
+                        onChange={(e) => setOrcamentoValor(e.target.value)}
+                        onWheel={(e) => e.target.blur()} 
+                        placeholder="Ex: 550.00"
+                        step="0.01"
+                    />
+                </div>
+            )}
+            <label>
+                <input
+                    type="checkbox"
+                    checked={limpezaAprovada}
+                    onChange={() => setLimpezaAprovada(!limpezaAprovada)}
+                />{' '}
+                Higienização aprovada e feita
+            </label>
+        </div>
 
         <label htmlFor="observacoes">Observações:</label>
         <textarea
@@ -597,7 +657,7 @@ Observações: ${observacoes}
 
             <div className="signature-section-container">
                 <button type="button" onClick={() => setSignatureDialogOpen(true)}>
-                  Coletar Assinatura
+                  Coletar Assinatura ✍️
                 </button>
                 {signature && (
                   <img 
@@ -612,12 +672,12 @@ Observações: ${observacoes}
                   />
                 )}
             </div>
-            <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF!</button>
+            <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF 📋</button>
           </>
         )}
 
-        <button type="submit">Gerar Resumo da OS!</button>
-        <button type="button" onClick={limparFormulario} style={{ marginTop: '10px' }}>Limpar Formulário</button>
+        <button type="submit">Gerar Resumo da OS✅</button>
+        <button type="button" onClick={limparFormulario} style={{ marginTop: '10px' }}>Limpar Formulário 🧹</button>
       </form>
     </>
   );
