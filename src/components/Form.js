@@ -5,7 +5,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import { ScanLine } from 'lucide-react';
 import ScannerDialog from './ScannerDialog';
-import SignatureDialog from './SignatureDialog'; // Certifique-se que este componente foi criado
+import SignatureDialog from './SignatureDialog';
 
 function Form({ setFormData }) {
   const [numero, setNumero] = useState('');
@@ -135,6 +135,8 @@ Observações: ${observacoes}
       return;
     }
 
+    // --- MUDANÇA PRINCIPAL AQUI ---
+    // Captura o texto completo da descrição, não apenas o código.
     let defeitoFinal;
     let reparoFinal;
 
@@ -231,13 +233,7 @@ Observações: ${observacoes}
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
       const drawText = (text, x, y, size = 10) => {
-        page.drawText(String(text), {
-          x,
-          y,
-          size,
-          font,
-          color: rgb(0, 0, 0)
-        });
+        page.drawText(String(text), { x, y, size, font, color: rgb(0, 0, 0) });
       };
 
       let pngImage = null;
@@ -256,7 +252,6 @@ Observações: ${observacoes}
       const textoReparo = isSamsung ? `Código de Reparo: ${reparoFinal}` : `Peça necessária: ${reparoFinal}`;
 
       const offset = 10;
-
       let dataFormatada = '';
       if (dataVisita) {
         const [ano, mes, dia] = dataVisita.split('-');
@@ -328,7 +323,7 @@ Observações: ${observacoes}
       alert("PDF gerado com sucesso!");
     } catch (error) {
       console.error("Erro ao carregar ou preencher o PDF:", error);
-      alert("Erro ao gerar o PDF. Verifique se o arquivo base está disponível para o tipo de aparelho e checklist selecionados.");
+      alert("Erro ao gerar o PDF. Verifique se o arquivo base está disponível.");
     }
   };
   
