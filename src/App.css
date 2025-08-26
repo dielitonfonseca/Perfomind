@@ -402,32 +402,48 @@ form#osForm {
 
 
 
-.dialog-content.signature-dialog {
-  /* Layout horizontal: 95% da largura da tela, 60% da altura */
-  width: 95vw;
-  height: 60vh;
-  
-  /* Limites para telas maiores */
-  max-width: 900px;
-  max-height: 500px; 
-  
+.dialog-overlay {
+  position: fixed; /* Cobre a tela inteira */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7); /* Fundo escuro semi-transparente */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000; /* Garante que fique acima de todo o conteúdo */
+}
+
+.dialog-content {
+  background-color: #2c2f38;
+  padding: 24px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  color: #e0e0e0;
 }
 
-.signature-dialog-canvas-container {
-  flex-grow: 1; /* Faz o container do canvas ocupar o espaço vertical disponível */
+.dialog-header {
+  text-align: center;
+}
+
+.dialog-header h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+
+.dialog-header p {
+  margin-bottom: 0;
+  color: #ccc;
+}
+
+.dialog-footer {
   display: flex;
-  width: 100%;
-  height: 100%; /* Garante que o container ocupe o espaço */
-  padding: 10px 0; /* Adiciona um respiro vertical */
-  box-sizing: border-box;
-}
-
-.sigCanvas-popup {
-  width: 100%;
-  height: 100%;
-  background-color: #f0f0f0; /* Fundo claro para a assinatura */
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  justify-content: flex-end;
+  gap: 10px;
 }
