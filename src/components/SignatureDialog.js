@@ -15,37 +15,31 @@ const Dialog = ({ children, open, onClose }) => {
 const SignatureDialog = ({ onSave, onClose }) => {
   const sigCanvas = useRef(null);
 
-  // Função para redimensionar o canvas para preencher seu contêiner
-  const resizeCanvas = () => {
-    if (sigCanvas.current) {
-      const canvas = sigCanvas.current.getCanvas();
-      const container = canvas.parentElement;
-      if (container) {
-        // Ajusta as dimensões do canvas para as do contêiner
-        canvas.width = container.offsetWidth;
-        canvas.height = container.offsetHeight;
-        sigCanvas.current.clear(); // Limpa o canvas após redimensionar
-      }
-    }
-  };
-
   useEffect(() => {
-    // Redimensiona o canvas quando o componente é montado e quando a janela muda de tamanho
-    setTimeout(resizeCanvas, 0); // Pequeno delay para garantir que o DOM está pronto
-    window.addEventListener('resize', resizeCanvas);
+    const resizeCanvas = () => {
+      if (sigCanvas.current) {
+        const canvas = sigCanvas.current.getCanvas();
+        const dialogContent = canvas.closest('.dialog-content');
+        if (dialogContent) {
+          const { width, height } = dialogContent.getBoundingClientRect();
+          canvas.width = width * 0.95; 
+          canvas.height = height * 0.75;
+        }
+      }
+    };
 
-    // Limpa o event listener quando o componente é desmontado
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
     return () => {
       window.removeEventListener('resize', resizeCanvas);
     };
   }, []);
 
   const handleSave = () => {
-    if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+    if (sigCanvas.current) {
       const signature = sigCanvas.current.toDataURL();
       onSave(signature);
-    } else {
-      alert("Por favor, colete a assinatura antes de salvar.");
     }
   };
 
@@ -55,11 +49,12 @@ const SignatureDialog = ({ onSave, onClose }) => {
     }
   };
 
+
   return (
     <Dialog open={true} onClose={onClose}>
       <div className="dialog-header">
         <h2>Coletar Assinatura</h2>
-        <p>Peça ao cliente para assinar na horizontal no campo abaixo.</p>
+        <p>Por favor, assine no campo abaixo.</p>
       </div>
       <div className="signature-dialog-canvas-container">
         <SignatureCanvas
