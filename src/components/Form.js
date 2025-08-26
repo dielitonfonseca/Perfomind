@@ -613,7 +613,7 @@ Observações: ${observacoes}
         <textarea
           id="observacoes"
           rows="4"
-          placeholder="Ex: Pagamento pendente..."
+          placeholder="Ex: Pagamento pendente, PPID de outras peças trocadas etc..."
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         ></textarea>
