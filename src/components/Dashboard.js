@@ -1,4 +1,3 @@
-// src/components/Dashboard.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -6,6 +5,69 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 
 // Paleta de cores para o gráfico de barras
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF1919', '#19B2FF', '#FFC719'];
+
+const calculateConsecutiveWeeks = (kpis, key, threshold, condition) => {
+  let consecutiveWeeks = 0;
+  for (let i = kpis.length - 1; i >= 0; i--) {
+    const kpi = kpis[i];
+    if (!kpi || typeof kpi[key] === 'undefined') {
+        continue;
+    }
+    const value = parseFloat(kpi[key]);
+
+    let conditionMet = false;
+    if (condition === 'less') {
+      conditionMet = value <= threshold;
+    } else if (condition === 'greater') {
+      conditionMet = value >= threshold;
+    }
+
+    if (conditionMet) {
+      consecutiveWeeks++;
+    } else {
+      break;
+    }
+  }
+  return consecutiveWeeks;
+};
+
+
+const PerformancePopup = ({ isOpen, onClose, kpiData }) => {
+  if (!isOpen) return null;
+
+  const ltpVdWeeks = calculateConsecutiveWeeks(kpiData, 'LTP VD %', 12.8, 'less');
+  const ltpDaWeeks = calculateConsecutiveWeeks(kpiData, 'LTP DA %', 17.4, 'less');
+  const rrrVdWeeks = calculateConsecutiveWeeks(kpiData, 'RRR VD %', 2.8, 'less');
+  const ihD1Weeks = calculateConsecutiveWeeks(kpiData, 'IN HOME D+1', 20, 'greater');
+  const firstVisitVdWeeks = calculateConsecutiveWeeks(kpiData, '1ST VISIT VD', 20, 'greater');
+
+  const p4pLtpVdWeeks = calculateConsecutiveWeeks(kpiData, 'LTP VD %', 5, 'less');
+  const p4pLtpDaWeeks = calculateConsecutiveWeeks(kpiData, 'LTP DA %', 7, 'less');
+  const p4pRrrVdWeeks = calculateConsecutiveWeeks(kpiData, 'RRR VD %', 1.5, 'less');
+
+  return (
+    <div className="dialog-overlay" onClick={onClose}>
+      <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-body">
+          <h2>Metas Contínuas</h2>
+          <p>Estamos há <strong>{ltpVdWeeks}</strong> semanas dentro do LTP VD (&lt;= 12.8%)</p>
+          <p>Estamos há <strong>{ltpDaWeeks}</strong> semanas dentro do LTP DA (&lt;= 17.4%)</p>
+          <p>Estamos há <strong>{rrrVdWeeks}</strong> semanas dentro do C-RRR VD (&lt;= 2.8%)</p>
+          <p>Estamos há <strong>{ihD1Weeks}</strong> semanas dentro do IH D+1 (&gt;= 20%)</p>
+          <p>Estamos há <strong>{firstVisitVdWeeks}</strong> semanas dentro do 1ST VISIT CI (&gt;= 20%)</p>
+          <hr />
+          <h3>Pay For Performance (P4P)</h3>
+          <p>Estamos há <strong>{p4pLtpVdWeeks}</strong> semanas dentro do LTP VD (&lt;= 5%)</p>
+          <p>Estamos há <strong>{p4pLtpDaWeeks}</strong> semanas dentro do LTP DA (&lt;= 7%)</p>
+          <p>Estamos há <strong>{p4pRrrVdWeeks}</strong> semanas dentro do CRRR VD (&lt;= 1.5%)</p>
+        </div>
+        <div className="dialog-footer">
+          <button onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [0, 'auto'] }) => {
   if (!data || data.length === 0) {
@@ -19,7 +81,6 @@ const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
-            // Margens ajustadas para ocupar 100% do espaço horizontal
             margin={{ top: 5, right: 80, left: 0, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#444" />
@@ -105,7 +166,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 const META_ORC_IH = 75000;
 
-function Dashboard() {
+function Dashboard({ showPopup, setShowPopup }) {
   const [technicianRanking, setTechnicianRanking] = useState([]);
   const [kpiData, setKpiData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -176,7 +237,7 @@ function Dashboard() {
         ...doc.data(),
       }));
       const sortedKpis = [...fetchedKpis].sort((a, b) => a.week - b.week);
-      setKpiData(sortedKpis.slice(-8));
+      setKpiData(sortedKpis);
     }, (err) => {
       console.error("Erro no listener de KPIs:", err);
       setError("Erro ao carregar dados de KPIs. Verifique as permissões do Firebase.");
@@ -262,21 +323,23 @@ function Dashboard() {
   const lastWeekScore = weeklyScores.length > 0 ? weeklyScores[weeklyScores.length - 1].finalScore : 0;
   const lastWeekCommission = calculateCommission(lastWeekScore);
 
-  const ltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [kpiData]);
-  const ltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [kpiData]);
-  const exltpvdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [kpiData]);
-  const exltpdaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'EX LPT DA %': parseFloat(d['EX LRP DA QTD']), 'EX LRP DA QTD': parseFloat(d['EX LRP DA QTD']) })), [kpiData]);
-  const ecoRepairVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'ECO REPAIR VD': parseFloat(d['ECO REPAIR VD']) })), [kpiData]);
-  const ftcHappyCallChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'FTC HAPPY CALL': parseFloat(d['FTC HAPPY CALL']) })), [kpiData]);
-  const poInHomeD1ChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'PO IN HOME D+1': parseFloat(d['PO IN HOME D+1']) })), [kpiData]);
-  const firstVisitVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, '1ST VISIT VD': parseFloat(d['1ST VISIT VD']) })), [kpiData]);
-  const inHomeD1ChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'IN HOME D+1': parseFloat(d['IN HOME D+1']) })), [kpiData]);
-  const rrrVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'RRR VD %': parseFloat(d['RRR VD %']), 'RRR VD QTD': parseFloat(d['RRR VD QTD']) })), [kpiData]);
-  const rrrDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'RRR DA %': parseFloat(d['RRR DA %']), 'RRR DA QTD': parseFloat(d['RRR DA QTD']) })), [kpiData]);
-  const rnpsVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'R-NPS VD': parseFloat(d['R-NPS VD']) })), [kpiData]);
-  const rnpsDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'R-NPS DA': parseFloat(d['R-NPS DA']) })), [kpiData]);
-  const ssrVdChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR VD': parseFloat(d['SSR VD']) })), [kpiData]);
-  const ssrDaChartData = useMemo(() => kpiData.map(d => ({ name: d.name, 'SSR DA': parseFloat(d['SSR DA']) })), [kpiData]);
+  const chartData = kpiData.slice(-8);
+
+  const ltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [chartData]);
+  const ltpdaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [chartData]);
+  const exltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [chartData]);
+  const exltpdaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'EX LPT DA %': parseFloat(d['EX LRP DA QTD']), 'EX LRP DA QTD': parseFloat(d['EX LRP DA QTD']) })), [chartData]);
+  const ecoRepairVdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'ECO REPAIR VD': parseFloat(d['ECO REPAIR VD']) })), [chartData]);
+  const ftcHappyCallChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'FTC HAPPY CALL': parseFloat(d['FTC HAPPY CALL']) })), [chartData]);
+  const poInHomeD1ChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'PO IN HOME D+1': parseFloat(d['PO IN HOME D+1']) })), [chartData]);
+  const firstVisitVdChartData = useMemo(() => chartData.map(d => ({ name: d.name, '1ST VISIT VD': parseFloat(d['1ST VISIT VD']) })), [chartData]);
+  const inHomeD1ChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'IN HOME D+1': parseFloat(d['IN HOME D+1']) })), [chartData]);
+  const rrrVdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'RRR VD %': parseFloat(d['RRR VD %']), 'RRR VD QTD': parseFloat(d['RRR VD QTD']) })), [chartData]);
+  const rrrDaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'RRR DA %': parseFloat(d['RRR DA %']), 'RRR DA QTD': parseFloat(d['RRR DA QTD']) })), [chartData]);
+  const rnpsVdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'R-NPS VD': parseFloat(d['R-NPS VD']) })), [chartData]);
+  const rnpsDaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'R-NPS DA': parseFloat(d['R-NPS DA']) })), [chartData]);
+  const ssrVdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'SSR VD': parseFloat(d['SSR VD']) })), [chartData]);
+  const ssrDaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'SSR DA': parseFloat(d['SSR DA']) })), [chartData]);
 
   if (loading) {
     return <div className="no-data-message">Carregando dados do Firebase...</div>;
@@ -288,6 +351,11 @@ function Dashboard() {
 
   return (
     <div className="output">
+        <PerformancePopup
+            isOpen={showPopup}
+            onClose={() => setShowPopup(false)}
+            kpiData={kpiData}
+        />
       <h3>Ranking de Ordens de Serviço ⚡</h3>
       {technicianRanking.length === 0 ? (
         <p className="no-data-message">Nenhuma ordem de serviço encontrada para o ranking.</p>

@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import './App.css';
 import Form from './components/Form';
@@ -9,6 +9,34 @@ import KpisPage from './pages/KpisPage';
 
 function App() {
   const [formData, setFormData] = useState(null);
+  const [showDashboardPopup, setShowDashboardPopup] = useState(false);
+  const [dashboardClickCount, setDashboardClickCount] = useState(0);
+  const [lastDashboardClickTime, setLastDashboardClickTime] = useState(0);
+
+  const handleDashboardClick = () => {
+    const now = Date.now();
+    if (now - lastDashboardClickTime < 5000) {
+      const newCount = dashboardClickCount + 1;
+      setDashboardClickCount(newCount);
+      if (newCount === 3) {
+        setShowDashboardPopup(true);
+        setDashboardClickCount(0);
+      }
+    } else {
+      setDashboardClickCount(1);
+    }
+    setLastDashboardClickTime(now);
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (Date.now() - lastDashboardClickTime > 5000) {
+        setDashboardClickCount(0);
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [lastDashboardClickTime]);
+
 
   return (
     <Router>
@@ -23,7 +51,7 @@ function App() {
                 <Link to="/">Início</Link>
               </li>
               <li>
-                <Link to="/dashboard">Dashboard</Link>
+                <Link to="/dashboard" onClick={handleDashboardClick}>Dashboard</Link>
               </li>
               {/* O link para "Gerar PDF" foi removido pois a funcionalidade agora está na página principal */}
             </ul>
@@ -39,7 +67,7 @@ function App() {
                 {formData && <Output data={formData} />}
               </>
             } />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<DashboardPage showPopup={showDashboardPopup} setShowPopup={setShowDashboardPopup} />} />
             <Route path="/kpis" element={<KpisPage />} />
           </Routes>
         </div>
