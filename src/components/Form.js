@@ -61,6 +61,15 @@ function Form({ setFormData }) {
     }
   }, [tecnicoSelect, tecnicoManual]);
 
+  // NOVO: useEffect para limpar os campos de orçamento/limpeza ao trocar para Assurant
+  useEffect(() => {
+    if (!isSamsung) {
+      setOrcamentoAprovado(false);
+      setOrcamentoValor('');
+      setLimpezaAprovada(false);
+    }
+  }, [isSamsung]);
+
   const validarNumero = (num, tipo) => {
     const padraoSamsung = /^417\d{7}$/;
     const padraoAssurant = /^\d{8}$/;
@@ -576,38 +585,41 @@ Observações: ${observacoes}
           </>
         )}
         
-        <div className="checkbox-container extra-options">
-            <label>
-                <input
-                    type="checkbox"
-                    checked={orcamentoAprovado}
-                    onChange={() => setOrcamentoAprovado(!orcamentoAprovado)}
-                />{' '}
-                Orçamento aprovado e pago 
-            </label>
-            {orcamentoAprovado && (
-                <div className="valor-container">
-                    <label htmlFor="orcamentoValor">Valor (R$):</label>
+        {/* MODIFICAÇÃO: Este bloco só será exibido se for Reparo Samsung */}
+        {isSamsung && (
+            <div className="checkbox-container extra-options">
+                <label>
                     <input
-                        type="number"
-                        id="orcamentoValor"
-                        value={orcamentoValor}
-                        onChange={(e) => setOrcamentoValor(e.target.value)}
-                        onWheel={(e) => e.target.blur()} 
-                        placeholder="Ex: 550.00"
-                        step="0.01"
-                    />
-                </div>
-            )}
-            <label>
-                <input
-                    type="checkbox"
-                    checked={limpezaAprovada}
-                    onChange={() => setLimpezaAprovada(!limpezaAprovada)}
-                />{' '}
-                Higienização aprovada e feita
-            </label>
-        </div>
+                        type="checkbox"
+                        checked={orcamentoAprovado}
+                        onChange={() => setOrcamentoAprovado(!orcamentoAprovado)}
+                    />{' '}
+                    Orçamento aprovado e pago 
+                </label>
+                {orcamentoAprovado && (
+                    <div className="valor-container">
+                        <label htmlFor="orcamentoValor">Valor (R$):</label>
+                        <input
+                            type="number"
+                            id="orcamentoValor"
+                            value={orcamentoValor}
+                            onChange={(e) => setOrcamentoValor(e.target.value)}
+                            onWheel={(e) => e.target.blur()} 
+                            placeholder="Ex: 550.00"
+                            step="0.01"
+                        />
+                    </div>
+                )}
+                <label>
+                    <input
+                        type="checkbox"
+                        checked={limpezaAprovada}
+                        onChange={() => setLimpezaAprovada(!limpezaAprovada)}
+                    />{' '}
+                    Higienização aprovada e feita
+                </label>
+            </div>
+        )}
 
         <label htmlFor="observacoes">Observações:</label>
         <textarea
