@@ -484,6 +484,10 @@ input[type='number']::-webkit-outer-spin-button {
   margin-top: 0;
 }
 
+.dialog-body p {
+  text-align: justify;
+}
+
 @media (max-width: 768px) {
   .dialog-body {
     overflow-x: auto; /* Adiciona uma barra de rolagem horizontal se o conteúdo transbordar */
