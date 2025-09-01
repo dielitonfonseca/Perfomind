@@ -311,12 +311,24 @@ ${obsText}
             }
 
             const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
-            const defeitoFinal = isSamsung ? defeitoSelect : defeitoManual;
-            const reparoFinal = isSamsung ? reparoSelect : reparoManual;
-
+            
+            // Lógica para obter o texto do defeito/reparo selecionado
+            let defeitoFinalText = defeitoManual;
+            let reparoFinalText = reparoManual;
+            if(isSamsung) {
+                const defeitoElement = document.getElementById('defeitoSelect');
+                if (defeitoElement.selectedIndex > 0) {
+                    defeitoFinalText = defeitoElement.options[defeitoElement.selectedIndex].text;
+                }
+                const reparoElement = document.getElementById('reparoSelect');
+                if(reparoElement.selectedIndex > 0) {
+                    reparoFinalText = reparoElement.options[reparoElement.selectedIndex].text;
+                }
+            }
+            
             const textoObservacoes = `Observações: ${observacoes}`;
-            const textoDefeito = isSamsung ? `Código de Defeito: ${defeitoFinal}` : `Defeito: ${defeitoFinal}`;
-            const textoReparo = isSamsung ? `Código de Reparo: ${reparoFinal}` : `Peça necessária: ${reparoFinal}`;
+            const textoDefeito = isSamsung ? `Código de Defeito: ${defeitoFinalText}` : `Defeito: ${defeitoFinalText}`;
+            const textoReparo = isSamsung ? `Código de Reparo: ${reparoFinalText}` : `Peça necessária: ${reparoFinalText}`;
 
             const offset = 10;
             let dataFormatada = '';
@@ -325,6 +337,7 @@ ${obsText}
                 dataFormatada = `${dia}/${mes}/${ano}`;
             }
 
+            // *** INÍCIO DA LÓGICA CORRIGIDA ***
             if (tipoAparelho === 'VD') {
                 drawText("FERNANDES COMUNICAÇÕES", 119, height - 72);
                 drawText(cliente, 90, height - 85);
@@ -333,13 +346,84 @@ ${obsText}
                 drawText(numero, 420, height - 72);
                 drawText(dataFormatada, 450, height - 100);
                 drawText(tecnicoFinal, 120, height - 800);
+
                 drawText(textoDefeito, 70, height - 750);
                 drawText(textoReparo, 70, height - 750 - offset);
                 drawText(textoObservacoes, 70, height - 750 - (offset * 2));
+
                 if (pngImage) {
-                    page.drawImage(pngImage, { x: 390, y: height - 820, width: 150, height: 40 });
+                    page.drawImage(pngImage, {
+                        x: 390,
+                        y: height - 820,
+                        width: 150,
+                        height: 40
+                    });
+                }
+            } else if (tipoAparelho === 'WSM') {
+                drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
+                drawText(`${cliente}`, 77, height - 125);
+                drawText(`${modelo}`, 77, height - 137);
+                drawText(`${serial}`, 590, height - 125);
+                drawText(`${numero}`, 590, height - 110);
+                drawText(`${dataFormatada}`, 605, height - 137);
+                drawText(`${tecnicoFinal}`, 110, height - 534);
+
+                drawText(textoDefeito, 65, height - 470);
+                drawText(textoReparo, 65, height - 470 - offset);
+                drawText(textoObservacoes, 65, height - 470 - (offset * 2));
+
+                if (pngImage) {
+                    page.drawImage(pngImage, {
+                        x: 550,
+                        y: height - 550,
+                        width: 150,
+                        height: 40
+                    });
+                }
+            } else if (tipoAparelho === 'REF') {
+                drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
+                drawText(`${cliente}`, 87, height - 130);
+                drawText(`${modelo}`, 87, height - 147);
+                drawText(`${serial}`, 660, height - 132);
+                drawText(`${numero}`, 660, height - 115);
+                drawText(`${dataFormatada}`, 665, height - 147);
+                drawText(`${tecnicoFinal}`, 114, height - 538);
+
+                drawText(textoDefeito, 65, height - 465);
+                drawText(textoReparo, 65, height - 465 - offset);
+                drawText(textoObservacoes, 65, height - 465 - (offset * 2));
+
+                if (pngImage) {
+                    page.drawImage(pngImage, {
+                        x: 600,
+                        y: height - 550,
+                        width: 150,
+                        height: 40
+                    });
+                }
+            } else if (tipoAparelho === 'RAC') {
+                drawText("FERNANDES COMUNICAÇÕES", 140, height - 0);
+                drawText(`${cliente}`, 87, height - 116);
+                drawText(`${modelo}`, 87, height - 127);
+                drawText(`${serial}`, 532, height - 116);
+                drawText(`${numero}`, 537, height - 105);
+                drawText(`${dataFormatada}`, 552, height - 128);
+                drawText(`${tecnicoFinal}`, 114, height - 533);
+
+                drawText(textoDefeito, 65, height - 470);
+                drawText(textoReparo, 65, height - 470 - offset);
+                drawText(textoObservacoes, 65, height - 470 - (offset * 2));
+
+                if (pngImage) {
+                    page.drawImage(pngImage, {
+                        x: 540,
+                        y: height - 550,
+                        width: 150,
+                        height: 40
+                    });
                 }
             }
+            // *** FIM DA LÓGICA CORRIGIDA ***
 
             const pdfBytes = await pdfDoc.save();
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -439,7 +523,7 @@ ${obsText}
                     <option value="Dieliton Fonseca">Dieliton 😎</option>
                     <option value="Matheus Lindoso">Matheus Lindoso</option>
                     <option value="Claudio Cris">Claudio Cris</option>
-                    <option value="Wallysson Cesar ">Wallysson Cesar</option>
+                    <option value="Wallysson Cesar">Wallysson Cesar</option>
                     <option value="João Pedro">João Pedro</option>
                     <option value="Pablo Henrique">Pablo Henrique</option>
                     <option value="Matheus Henrique">Matheus Henrique</option>

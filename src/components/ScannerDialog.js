@@ -1,72 +1,53 @@
 import React, { useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
-
-const Dialog = ({ children, open, onClose }) => {
-  if (!open) return null;
-  return (
-    <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog-content" onClick={e => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  );
-};
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const ScannerDialog = ({ onScanSuccess, onClose }) => {
-  const scannerRef = useRef(null);
-  const scannerContainerId = "qr-reader";
+    const scannerRef = useRef(null);
 
-  useEffect(() => {
-    scannerRef.current = new Html5Qrcode(scannerContainerId);
-    const scanner = scannerRef.current;
+    useEffect(() => {
+        if (!scannerRef.current) return;
 
-    const startScanner = async () => {
-      try {
-        await scanner.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-          },
-          (decodedText) => {
-            onScanSuccess(decodedText);
-          },
-          (errorMessage) => {
-            // Can be ignored
-          }
+        const scanner = new Html5QrcodeScanner(
+            scannerRef.current.id,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            false // verbose
         );
-      } catch (err) {
-        console.error("Error starting scanner:", err);
-        alert("Could not start scanner. Please check camera permissions.");
-        onClose();
-      }
-    };
 
-    startScanner();
+        const handleSuccess = (decodedText, decodedResult) => {
+            scanner.clear().then(() => {
+                onScanSuccess(decodedText);
+            }).catch(error => {
+                console.error("Falha ao limpar o scanner.", error);
+            });
+        };
 
-    return () => {
-      if (scanner && scanner.isScanning) {
-        scanner.stop().catch(err => {
-          console.error("Failed to stop scanner.", err);
-        });
-      }
-    };
-  }, [onScanSuccess, onClose]);
+        const handleError = (error) => {
+            // console.warn(`QR Code Scan Error: ${error}`);
+        };
 
-  return (
-    <Dialog open={true} onClose={onClose}>
-      <div className="dialog-header">
-        <h2>Escanear Código</h2>
-        <p>Aponte a câmera para o código de barras ou QR code.</p>
-      </div>
-      <div id={scannerContainerId} style={{ width: '100%', minHeight: '300px' }} />
-      <div className="dialog-footer">
-        <button type="button" onClick={onClose}>
-          Cancelar
-        </button>
-      </div>
-    </Dialog>
-  );
+        scanner.render(handleSuccess, handleError);
+
+        // Função de limpeza para parar o scanner quando o componente for desmontado
+        return () => {
+            scanner.clear().catch(error => {
+                console.error("Falha ao limpar o scanner na desmontagem.", error);
+            });
+        };
+    }, [onScanSuccess]);
+
+    return (
+        <div className="dialog-overlay" onClick={onClose}>
+            <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
+                <div className="dialog-header">
+                    <h2>Escanear Código</h2>
+                    <button onClick={onClose} className="close-button">&times;</button>
+                </div>
+                <div className="dialog-body">
+                    <div id="qr-reader" ref={scannerRef}></div>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default ScannerDialog;

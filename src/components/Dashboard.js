@@ -447,7 +447,7 @@ function Dashboard({ showPopup, setShowPopup }) {
       </div>
 
       <h3>KPIs de Desempenho 🚀</h3>
-      <div className="kpi-grid">
+      <div className={`kpi-grid ${isMobile ? 'mobile' : ''}`}>
         <KPIChart
           data={ltpvdChartData}
           title=" LTP VD % "

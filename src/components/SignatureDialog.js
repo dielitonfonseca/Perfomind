@@ -49,7 +49,6 @@ const SignatureDialog = ({ onSave, onClose }) => {
     }
   };
 
-
   return (
     <Dialog open={true} onClose={onClose}>
       <div className="dialog-header">
@@ -60,6 +59,10 @@ const SignatureDialog = ({ onSave, onClose }) => {
         <SignatureCanvas
           ref={sigCanvas}
           penColor="black"
+          // --- LINHAS ADICIONADAS AQUI ---
+          minWidth={2.5} // Define a espessura mínima do traço
+          maxWidth={5}   // Define a espessura máxima do traço
+          // ---------------------------------
           canvasProps={{ className: 'sigCanvas-popup' }}
         />
       </div>
