@@ -355,8 +355,8 @@ ${obsText}
                     page.drawImage(pngImage, {
                         x: 390,
                         y: height - 820,
-                        width: 150,
-                        height: 40
+                        width: 165,
+                        height: 55
                     });
                 }
             } else if (tipoAparelho === 'WSM') {

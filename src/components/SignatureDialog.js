@@ -23,7 +23,7 @@ const SignatureDialog = ({ onSave, onClose }) => {
         if (dialogContent) {
           const { width, height } = dialogContent.getBoundingClientRect();
           canvas.width = width * 0.95; 
-          canvas.height = height * 1.0; //teste altura assinatura
+          canvas.height = height * 0.65;
         }
       }
     };
