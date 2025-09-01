@@ -23,7 +23,7 @@ const SignatureDialog = ({ onSave, onClose }) => {
         if (dialogContent) {
           const { width, height } = dialogContent.getBoundingClientRect();
           canvas.width = width * 0.95; 
-          canvas.height = height * 0.75;
+          canvas.height = height * 1.0;
         }
       }
     };
@@ -59,7 +59,7 @@ const SignatureDialog = ({ onSave, onClose }) => {
         <SignatureCanvas
           ref={sigCanvas}
           penColor="black"
-          // --- LINHAS ADICIONADAS AQUI ---
+        
           minWidth={2.5} // Define a espessura mínima do traço
           maxWidth={5}   // Define a espessura máxima do traço
           // ---------------------------------
