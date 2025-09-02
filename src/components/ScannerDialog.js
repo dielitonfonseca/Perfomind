@@ -6,6 +6,23 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
     const fileInputRef = useRef(null);
     const [isFlashOn, setIsFlashOn] = useState(false);
     const [isFlashAvailable, setFlashAvailable] = useState(false);
+    const scannerInstanceRef = useRef(null);
+
+    // Efeito para injetar CSS e customizar a UI do scanner
+    useEffect(() => {
+        const style = document.createElement('style');
+        style.innerHTML = `
+            #html5-qrcode-button-camera-stop, 
+            #html5-qrcode-anchor-scan-type-change {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+        return () => {
+            document.head.removeChild(style);
+        };
+    }, []);
+
 
     useEffect(() => {
         if (!scannerRef.current) return;
@@ -15,54 +32,47 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
             {
                 fps: 10,
                 qrbox: { width: 250, height: 250 },
-                // Solicita a câmera traseira
-                facingMode: "environment",
-                // Desativa o botão de carregar arquivo padrão
-                showOpenFileButton: false,
+                facingMode: "environment", // Prioriza a câmera traseira
+                showOpenFileButton: false, // Oculta o botão de arquivo padrão
             },
             false // verbose
         );
+        scannerInstanceRef.current = scanner;
 
         const handleSuccess = (decodedText, decodedResult) => {
-            scanner.clear().then(() => {
-                onScanSuccess(decodedText);
-            }).catch(error => {
-                console.error("Falha ao limpar o scanner.", error);
-            });
+            if(scannerInstanceRef.current){
+                 scannerInstanceRef.current.clear().then(() => {
+                    onScanSuccess(decodedText);
+                }).catch(error => {
+                    console.error("Falha ao limpar o scanner.", error);
+                });
+            }
         };
 
-        const handleError = (error) => {
-            // console.warn(`QR Code Scan Error: ${error}`);
-        };
+        const handleError = (error) => { /* console.warn(`QR Code Scan Error: ${error}`); */ };
 
         scanner.render(handleSuccess, handleError);
 
-        // Função robusta para verificar a disponibilidade do flash
         const checkForFlash = () => {
             const videoElement = document.querySelector(`#${scannerRef.current.id} video`);
-
             if (videoElement && videoElement.srcObject && videoElement.readyState === 4) {
-                const stream = videoElement.srcObject;
-                const track = stream.getVideoTracks()[0];
-                if (track) {
-                    const capabilities = track.getCapabilities();
-                    if (capabilities.torch) {
-                        setFlashAvailable(true);
-                    }
+                const track = videoElement.srcObject.getVideoTracks()[0];
+                if (track && track.getCapabilities().torch) {
+                    setFlashAvailable(true);
                 }
             } else {
-                // Tenta novamente se o vídeo ainda não estiver pronto
                 setTimeout(checkForFlash, 200);
             }
         };
 
         checkForFlash();
 
-        // Limpa o scanner quando o componente é desmontado
         return () => {
-            scanner.clear().catch(error => {
-                console.error("Falha ao limpar o scanner na desmontagem.", error);
-            });
+             if(scannerInstanceRef.current){
+                scannerInstanceRef.current.clear().catch(error => {
+                    console.error("Falha ao limpar o scanner na desmontagem.", error);
+                });
+            }
         };
     }, [onScanSuccess]);
 
@@ -71,23 +81,21 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
         if (videoElement && videoElement.srcObject) {
             const track = videoElement.srcObject.getVideoTracks()[0];
             if (track) {
-                track.applyConstraints({
-                    advanced: [{ torch: !isFlashOn }]
-                })
-                .then(() => setIsFlashOn(!isFlashOn))
-                .catch(e => console.error("Erro ao controlar o flash:", e));
+                track.applyConstraints({ advanced: [{ torch: !isFlashOn }] })
+                    .then(() => setIsFlashOn(!isFlashOn))
+                    .catch(e => console.error("Erro ao controlar o flash:", e));
             }
         }
     };
 
-    // Função para lidar com a seleção de arquivo da galeria
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         try {
-            // Usamos Html5Qrcode aqui APENAS para escanear o arquivo
-            const result = await new Html5Qrcode().scanFile(file, false);
+            // CORREÇÃO: Passa o ID do elemento para o construtor do Html5Qrcode
+            const fileScanner = new Html5Qrcode(scannerRef.current.id);
+            const result = await fileScanner.scanFile(file, false);
             onScanSuccess(result);
         } catch (err) {
             alert(`Não foi possível ler o QR Code da imagem. Erro: ${err}`);
@@ -104,7 +112,6 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
                 </div>
                 <div className="dialog-body">
                     <div id="qr-reader" ref={scannerRef}></div>
-                    {/* Input de arquivo escondido */}
                     <input
                         type="file"
                         accept="image/*"
@@ -112,8 +119,6 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
                         style={{ display: 'none' }}
                         onChange={handleFileChange}
                     />
-
-                    {/* Botões personalizados */}
                     <button onClick={() => fileInputRef.current.click()} className="custom-button">
                         Carregar da Galeria
                     </button>
