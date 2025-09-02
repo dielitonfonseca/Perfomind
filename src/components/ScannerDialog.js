@@ -1,14 +1,15 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 const ScannerDialog = ({ onScanSuccess, onClose }) => {
     const readerRef = useRef(null);
     const fileInputRef = useRef(null);
     const html5QrCodeRef = useRef(null);
+    const [isFlashOn, setIsFlashOn] = useState(false);
+    const [isFlashAvailable, setFlashAvailable] = useState(false);
 
     useEffect(() => {
         if (!readerRef.current) return;
-        // Limpa o container para evitar duplicatas ao reabrir
         readerRef.current.innerHTML = "";
 
         const html5QrCode = new Html5Qrcode(readerRef.current.id);
@@ -20,24 +21,29 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
 
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-        const startScanner = (facingMode) => {
+        const startScannerWithCapabilities = (facingMode) => {
             return html5QrCode.start(
                 { facingMode: facingMode },
                 config,
                 successCallback,
-                (errorMessage) => { /* ignora erros de não detecção */ }
-            );
+                (errorMessage) => { /* ignore */ }
+            ).then(() => {
+                // Após a câmera iniciar, verificamos o suporte ao flash
+                const capabilities = html5QrCode.getRunningTrackCameraCapabilities();
+                if (capabilities.torch) {
+                    setFlashAvailable(true);
+                }
+            });
         };
 
         // Tenta iniciar com a câmera traseira ("environment")
-        startScanner("environment").catch((err) => {
+        startScannerWithCapabilities("environment").catch((err) => {
             console.warn("Falha ao iniciar câmera traseira, tentando câmera frontal.", err);
             // Se falhar, tenta iniciar com a câmera frontal ("user")
-            startScanner("user").catch((errUser) => {
+            startScannerWithCapabilities("user").catch((errUser) => {
                  console.error("Não foi possível iniciar nenhuma câmera.", errUser);
             });
         });
-
 
         return () => {
             if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
@@ -46,12 +52,24 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
         };
     }, [onScanSuccess]);
 
+    const toggleFlash = () => {
+        if (html5QrCodeRef.current && isFlashAvailable) {
+            const newFlashState = !isFlashOn;
+            html5QrCodeRef.current.applyVideoConstraints({
+                torch: newFlashState,
+                advanced: [{torch: newFlashState}]
+            }).then(() => {
+                setIsFlashOn(newFlashState);
+            }).catch((err) => {
+                console.error("Erro ao tentar controlar o flash.", err);
+            });
+        }
+    };
 
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (file && html5QrCodeRef.current) {
             try {
-                 // Pausa a câmera antes de escanear o arquivo para economizar recursos
                 if (html5QrCodeRef.current.isScanning) {
                     await html5QrCodeRef.current.stop();
                 }
@@ -59,7 +77,6 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
                 onScanSuccess(decodedText);
             } catch (err) {
                  alert(`Erro ao escanear a imagem: ${err}`);
-                 // Reinicia a câmera se a leitura do arquivo falhar
                  onClose();
             }
         }
@@ -85,6 +102,11 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
                         style={{ display: 'none' }}
                         onChange={handleFileChange}
                     />
+                    {isFlashAvailable && (
+                        <button onClick={toggleFlash} className="custom-button flash-button">
+                            {isFlashOn ? 'Desligar Flash' : 'Ligar Flash'}
+                        </button>
+                    )}
                     <button onClick={handleGalleryClick} className="custom-button">
                         Carregar da Galeria
                     </button>
