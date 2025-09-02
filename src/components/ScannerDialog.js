@@ -8,33 +8,18 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
     const [isFlashAvailable, setFlashAvailable] = useState(false);
     const scannerInstanceRef = useRef(null);
 
-    // Efeito para observar e modificar a UI do scanner assim que ela for renderizada
+    // Efeito para injetar CSS e customizar a UI do scanner
     useEffect(() => {
-        const container = scannerRef.current;
-        if (!container) return;
-
-        const observer = new MutationObserver((mutations, obs) => {
-            // Procura o botão de parar e o de trocar a câmera
-            const stopButton = document.getElementById('html5-qrcode-button-camera-stop');
-            const cameraSelection = document.getElementById('html5-qrcode-anchor-scan-type-change');
-
-            // Se ambos existirem, oculta-os e para de observar
-            if (stopButton && cameraSelection) {
-                stopButton.style.display = 'none';
-                cameraSelection.style.display = 'none';
-                obs.disconnect(); // Para de observar após a modificação
+        const style = document.createElement('style');
+        style.innerHTML = `
+            #html5-qrcode-button-camera-stop, 
+            #html5-qrcode-anchor-scan-type-change {
+                display: none !important;
             }
-        });
-
-        // Inicia a observação no container do scanner
-        observer.observe(container, {
-            childList: true,
-            subtree: true
-        });
-
-        // Limpa o observador quando o componente é desmontado
+        `;
+        document.head.appendChild(style);
         return () => {
-            observer.disconnect();
+            document.head.removeChild(style);
         };
     }, []);
 
@@ -47,27 +32,31 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
             {
                 fps: 10,
                 qrbox: { width: 250, height: 250 },
-                facingMode: "environment",
-                showOpenFileButton: false,
+                facingMode: "environment", // Prioriza a câmera traseira
+                showOpenFileButton: false, // Oculta o botão de arquivo padrão
             },
-            false
+            false // verbose
         );
         scannerInstanceRef.current = scanner;
 
-        const handleSuccess = (decodedText) => {
-            if (scannerInstanceRef.current) {
-                scannerInstanceRef.current.clear().then(() => onScanSuccess(decodedText));
+        const handleSuccess = (decodedText, decodedResult) => {
+            if(scannerInstanceRef.current){
+                 scannerInstanceRef.current.clear().then(() => {
+                    onScanSuccess(decodedText);
+                }).catch(error => {
+                    console.error("Falha ao limpar o scanner.", error);
+                });
             }
         };
 
-        const handleError = () => { /* Ignora erros */ };
+        const handleError = (error) => { /* console.warn(`QR Code Scan Error: ${error}`); */ };
 
         scanner.render(handleSuccess, handleError);
 
         const checkForFlash = () => {
             const videoElement = document.querySelector(`#${scannerRef.current.id} video`);
-            if (videoElement && videoElement.readyState === 4) {
-                const track = videoElement.srcObject?.getVideoTracks()[0];
+            if (videoElement && videoElement.srcObject && videoElement.readyState === 4) {
+                const track = videoElement.srcObject.getVideoTracks()[0];
                 if (track && track.getCapabilities().torch) {
                     setFlashAvailable(true);
                 }
@@ -79,19 +68,23 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
         checkForFlash();
 
         return () => {
-            if (scannerInstanceRef.current) {
-                scannerInstanceRef.current.clear().catch(() => {});
+             if(scannerInstanceRef.current){
+                scannerInstanceRef.current.clear().catch(error => {
+                    console.error("Falha ao limpar o scanner na desmontagem.", error);
+                });
             }
         };
     }, [onScanSuccess]);
 
     const toggleFlash = () => {
         const videoElement = document.querySelector(`#${scannerRef.current.id} video`);
-        const track = videoElement?.srcObject?.getVideoTracks()[0];
-        if (track) {
-            track.applyConstraints({ advanced: [{ torch: !isFlashOn }] })
-                .then(() => setIsFlashOn(!isFlashOn))
-                .catch(e => console.error("Erro ao controlar o flash:", e));
+        if (videoElement && videoElement.srcObject) {
+            const track = videoElement.srcObject.getVideoTracks()[0];
+            if (track) {
+                track.applyConstraints({ advanced: [{ torch: !isFlashOn }] })
+                    .then(() => setIsFlashOn(!isFlashOn))
+                    .catch(e => console.error("Erro ao controlar o flash:", e));
+            }
         }
     };
 
@@ -100,6 +93,7 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
         if (!file) return;
 
         try {
+            // CORREÇÃO: Passa o ID do elemento para o construtor do Html5Qrcode
             const fileScanner = new Html5Qrcode(scannerRef.current.id);
             const result = await fileScanner.scanFile(file, false);
             onScanSuccess(result);
@@ -107,6 +101,7 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
             alert(`Não foi possível ler o QR Code da imagem. Erro: ${err}`);
         }
     };
+
 
     return (
         <div className="dialog-overlay" onClick={onClose}>
@@ -117,8 +112,13 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
                 </div>
                 <div className="dialog-body">
                     <div id="qr-reader" ref={scannerRef}></div>
-                    <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
-                    
+                    <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        onChange={handleFileChange}
+                    />
                     <button onClick={() => fileInputRef.current.click()} className="custom-button">
                         Carregar da Galeria
                     </button>
