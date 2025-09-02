@@ -1,80 +1,72 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import React, { useEffect, useRef } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const ScannerDialog = ({ onScanSuccess, onClose }) => {
-    const scannerRef = useRef(null);
-    const [isFlashOn, setIsFlashOn] = useState(false);
-    const [isFlashAvailable, setFlashAvailable] = useState(false);
-    const scannerInstance = useRef(null);
+    const readerRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const html5QrCodeRef = useRef(null);
 
     useEffect(() => {
-        if (!scannerRef.current) return;
+        if (!readerRef.current) return;
+        // Limpa o container para evitar duplicatas ao reabrir
+        readerRef.current.innerHTML = "";
 
-        const scanner = new Html5QrcodeScanner(
-            scannerRef.current.id,
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            false // verbose
-        );
-        scannerInstance.current = scanner;
+        const html5QrCode = new Html5Qrcode(readerRef.current.id);
+        html5QrCodeRef.current = html5QrCode;
 
-        const handleSuccess = (decodedText, decodedResult) => {
-            scanner.clear().then(() => {
-                onScanSuccess(decodedText);
-            }).catch(error => {
-                console.error("Falha ao limpar o scanner.", error);
+        const successCallback = (decodedText, decodedResult) => {
+            onScanSuccess(decodedText);
+        };
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        const startScanner = (facingMode) => {
+            return html5QrCode.start(
+                { facingMode: facingMode },
+                config,
+                successCallback,
+                (errorMessage) => { /* ignora erros de não detecção */ }
+            );
+        };
+
+        // Tenta iniciar com a câmera traseira ("environment")
+        startScanner("environment").catch((err) => {
+            console.warn("Falha ao iniciar câmera traseira, tentando câmera frontal.", err);
+            // Se falhar, tenta iniciar com a câmera frontal ("user")
+            startScanner("user").catch((errUser) => {
+                 console.error("Não foi possível iniciar nenhuma câmera.", errUser);
             });
-        };
+        });
 
-        const handleError = (error) => {
-            // console.warn(`QR Code Scan Error: ${error}`);
-        };
-
-        scanner.render(handleSuccess, handleError);
-
-        // Função para verificar a disponibilidade do flash
-        const checkForFlash = () => {
-            const videoElement = document.querySelector(`#${scannerRef.current.id} video`);
-
-            if (videoElement && videoElement.srcObject) {
-                const stream = videoElement.srcObject;
-                const track = stream.getVideoTracks()[0];
-                if (track) {
-                    const capabilities = track.getCapabilities();
-                    if (capabilities.torch) {
-                        setFlashAvailable(true);
-                    }
-                }
-            } else {
-                // Tenta novamente em 100ms se o vídeo ainda não estiver pronto
-                setTimeout(checkForFlash, 100);
-            }
-        };
-
-        checkForFlash();
 
         return () => {
-            scanner.clear().catch(error => {
-                console.error("Falha ao limpar o scanner na desmontagem.", error);
-            });
+            if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+                html5QrCodeRef.current.stop().catch(err => console.error("Erro ao parar o scanner.", err));
+            }
         };
     }, [onScanSuccess]);
 
-    const toggleFlash = () => {
-        const videoElement = document.querySelector(`#${scannerRef.current.id} video`);
-        if (videoElement && videoElement.srcObject) {
-            const stream = videoElement.srcObject;
-            const track = stream.getVideoTracks()[0];
 
-            if (track) {
-                track.applyConstraints({
-                    advanced: [{ torch: !isFlashOn }]
-                })
-                .then(() => {
-                    setIsFlashOn(!isFlashOn);
-                })
-                .catch(e => console.error(e));
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (file && html5QrCodeRef.current) {
+            try {
+                 // Pausa a câmera antes de escanear o arquivo para economizar recursos
+                if (html5QrCodeRef.current.isScanning) {
+                    await html5QrCodeRef.current.stop();
+                }
+                const decodedText = await html5QrCodeRef.current.scanFile(file, true);
+                onScanSuccess(decodedText);
+            } catch (err) {
+                 alert(`Erro ao escanear a imagem: ${err}`);
+                 // Reinicia a câmera se a leitura do arquivo falhar
+                 onClose();
             }
         }
+    };
+
+    const handleGalleryClick = () => {
+        fileInputRef.current.click();
     };
 
     return (
@@ -85,12 +77,20 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
                     <button onClick={onClose} className="close-button">&times;</button>
                 </div>
                 <div className="dialog-body">
-                    <div id="qr-reader" ref={scannerRef}></div>
-                    {isFlashAvailable && (
-                        <button onClick={toggleFlash} className="flash-button">
-                            {isFlashOn ? 'Desligar Flash' : 'Ligar Flash'}
-                        </button>
-                    )}
+                    <div id="qr-reader" ref={readerRef} style={{ width: '100%', border: '1px solid #eee', marginBottom: '10px' }}></div>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        onChange={handleFileChange}
+                    />
+                    <button onClick={handleGalleryClick} className="custom-button">
+                        Carregar da Galeria
+                    </button>
+                    <button onClick={onClose} className="custom-button stop-scan-button">
+                        Fechar Scanner
+                    </button>
                 </div>
             </div>
         </div>
