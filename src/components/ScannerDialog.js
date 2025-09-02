@@ -1,8 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const ScannerDialog = ({ onScanSuccess, onClose }) => {
     const scannerRef = useRef(null);
+    const [isFlashOn, setIsFlashOn] = useState(false);
+    const [isFlashAvailable, setFlashAvailable] = useState(false);
+    const scannerInstance = useRef(null);
 
     useEffect(() => {
         if (!scannerRef.current) return;
@@ -12,6 +15,7 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
             { fps: 10, qrbox: { width: 250, height: 250 } },
             false // verbose
         );
+        scannerInstance.current = scanner;
 
         const handleSuccess = (decodedText, decodedResult) => {
             scanner.clear().then(() => {
@@ -27,13 +31,51 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
 
         scanner.render(handleSuccess, handleError);
 
-        // Função de limpeza para parar o scanner quando o componente for desmontado
+        // Função para verificar a disponibilidade do flash
+        const checkForFlash = () => {
+            const videoElement = document.querySelector(`#${scannerRef.current.id} video`);
+
+            if (videoElement && videoElement.srcObject) {
+                const stream = videoElement.srcObject;
+                const track = stream.getVideoTracks()[0];
+                if (track) {
+                    const capabilities = track.getCapabilities();
+                    if (capabilities.torch) {
+                        setFlashAvailable(true);
+                    }
+                }
+            } else {
+                // Tenta novamente em 100ms se o vídeo ainda não estiver pronto
+                setTimeout(checkForFlash, 100);
+            }
+        };
+
+        checkForFlash();
+
         return () => {
             scanner.clear().catch(error => {
                 console.error("Falha ao limpar o scanner na desmontagem.", error);
             });
         };
     }, [onScanSuccess]);
+
+    const toggleFlash = () => {
+        const videoElement = document.querySelector(`#${scannerRef.current.id} video`);
+        if (videoElement && videoElement.srcObject) {
+            const stream = videoElement.srcObject;
+            const track = stream.getVideoTracks()[0];
+
+            if (track) {
+                track.applyConstraints({
+                    advanced: [{ torch: !isFlashOn }]
+                })
+                .then(() => {
+                    setIsFlashOn(!isFlashOn);
+                })
+                .catch(e => console.error(e));
+            }
+        }
+    };
 
     return (
         <div className="dialog-overlay" onClick={onClose}>
@@ -44,6 +86,11 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
                 </div>
                 <div className="dialog-body">
                     <div id="qr-reader" ref={scannerRef}></div>
+                    {isFlashAvailable && (
+                        <button onClick={toggleFlash} className="flash-button">
+                            {isFlashOn ? 'Desligar Flash' : 'Ligar Flash'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
