@@ -451,3 +451,18 @@ form#osForm {
 .close-button { /* Se for uma classe */
   display: none !important;
 }
+
+.flash-button {
+    margin-top: 10px;
+    padding: 10px 15px;
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.flash-button:hover {
+    background-color: #0056b3;
+}
