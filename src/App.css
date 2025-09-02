@@ -475,3 +475,12 @@ form#osForm {
 .stop-scan-button:hover {
     background-color: #5a6268;
 }
+
+.flash-button {
+    background-color: #ffc107; /* Cor amarela para o flash */
+    color: #212529;
+}
+
+.flash-button:hover {
+    background-color: #e0a800;
+}

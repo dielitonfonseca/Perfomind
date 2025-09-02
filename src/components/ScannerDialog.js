@@ -12,7 +12,10 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
         if (!readerRef.current) return;
         readerRef.current.innerHTML = "";
 
-        const html5QrCode = new Html5Qrcode(readerRef.current.id);
+        const html5QrCode = new Html5Qrcode(readerRef.current.id, {
+             // Adiciona logs para depuração
+            verbose: true
+        });
         html5QrCodeRef.current = html5QrCode;
 
         const successCallback = (decodedText, decodedResult) => {
@@ -21,29 +24,51 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
 
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-        const startScannerWithCapabilities = (facingMode) => {
+        // Função para verificar o flash de forma robusta
+        const checkForFlash = () => {
+             // O Html5Qrcode cria um elemento de vídeo. Nós o encontramos.
+            const videoElement = document.querySelector(`#${readerRef.current.id} video`);
+
+            // Se o vídeo e sua trilha estiverem ativos
+            if (videoElement && videoElement.readyState === 4) {
+                try {
+                    const capabilities = html5QrCode.getRunningTrackCameraCapabilities();
+                    if (capabilities.torch) {
+                        setFlashAvailable(true);
+                        console.log("Flash disponível!");
+                    } else {
+                        console.log("Flash não suportado nesta câmera.");
+                    }
+                } catch (e) {
+                    console.error("Erro ao verificar capacidades da câmera:", e);
+                }
+            } else {
+                 // Se ainda não estiver pronto, tenta novamente em 200ms
+                setTimeout(checkForFlash, 200);
+            }
+        };
+
+
+        const startScanner = (facingMode) => {
             return html5QrCode.start(
                 { facingMode: facingMode },
                 config,
                 successCallback,
                 (errorMessage) => { /* ignore */ }
-            ).then(() => {
-                // Após a câmera iniciar, verificamos o suporte ao flash
-                const capabilities = html5QrCode.getRunningTrackCameraCapabilities();
-                if (capabilities.torch) {
-                    setFlashAvailable(true);
-                }
-            });
+            );
         };
 
-        // Tenta iniciar com a câmera traseira ("environment")
-        startScannerWithCapabilities("environment").catch((err) => {
-            console.warn("Falha ao iniciar câmera traseira, tentando câmera frontal.", err);
-            // Se falhar, tenta iniciar com a câmera frontal ("user")
-            startScannerWithCapabilities("user").catch((errUser) => {
-                 console.error("Não foi possível iniciar nenhuma câmera.", errUser);
+        // Inicia a câmera e, em seguida, verifica o flash
+        startScanner("environment")
+            .then(checkForFlash) // Verifica o flash após o sucesso
+            .catch((err) => {
+                console.warn("Falha ao iniciar câmera traseira, tentando câmera frontal.", err);
+                startScanner("user")
+                    .then(checkForFlash) // Verifica o flash após o sucesso
+                    .catch((errUser) => {
+                         console.error("Não foi possível iniciar nenhuma câmera.", errUser);
+                    });
             });
-        });
 
         return () => {
             if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
@@ -102,17 +127,19 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
                         style={{ display: 'none' }}
                         onChange={handleFileChange}
                     />
-                    {isFlashAvailable && (
-                        <button onClick={toggleFlash} className="custom-button flash-button">
-                            {isFlashOn ? 'Desligar Flash' : 'Ligar Flash'}
-                        </button>
-                    )}
+
                     <button onClick={handleGalleryClick} className="custom-button">
                         Carregar da Galeria
                     </button>
                     <button onClick={onClose} className="custom-button stop-scan-button">
                         Fechar Scanner
                     </button>
+                     {/* Botão do flash movido para baixo */}
+                    {isFlashAvailable && (
+                        <button onClick={toggleFlash} className="custom-button flash-button">
+                            {isFlashOn ? 'Desligar Flash' : 'Ligar Flash'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
