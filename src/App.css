@@ -357,7 +357,9 @@ form#osForm {
   gap: 16px;
 }
 
-
+.dialog-header {
+  text-align: center;
+}
 
 .dialog-header h2 {
   margin-top: 0;
@@ -417,7 +419,7 @@ form#osForm {
   background-color: #2c2f38;
   padding: 24px;
   border-radius: 8px;
-  max-width: 550px;
+  max-width: 500px;
   width: 90%;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -446,55 +448,6 @@ form#osForm {
   gap: 10px;
 }
 
-input[type='number']::-webkit-inner-spin-button,
-input[type='number']::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+.close-button { /* Se for uma classe */
+  display: none !important;
 }
-
-.dialog-body {
-  text-align: left;
-  line-height: 1.6;
-}
-
-.dialog-body h3 {
-    text-align: left;
-    margin-top: 1em;
-}
-
-.dialog-body hr {
-    border: 0;
-    border-top: 1px solid #444;
-    margin: 1em 0;
-}   
-.dialog-body h2, .dialog-body h3 {
-  text-align: center;
-  margin: 1.5em 0; /* Define um espaçamento vertical consistente */
-}
-
-
-.dialog-body {
-  padding: 20px; 
-  text-align: left;
-  line-height: 1.6;
-}
-
-
-.dialog-body h2 {
-  margin-top: 0;
-}
-
-.dialog-body p {
-  text-align: justify;
-}
-
-@media (max-width: 768px) {
-  .dialog-body {
-    overflow-x: auto; /* Adiciona uma barra de rolagem horizontal se o conteúdo transbordar */
-  }
-
-  .dialog-body p {
-    white-space: nowrap; /* Impede que o texto quebre em várias linhas */
-  }
-}
-
