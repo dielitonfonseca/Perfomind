@@ -469,6 +469,7 @@ function Dashboard({ showPopup, setShowPopup }) {
             { value: 7, stroke: '#FFD700', label: 'P4P: 7%' }
           ]}
           tooltipContent={<CustomTooltip />}
+          yAxisDomain={[0, 40]}
         />
         
         <KPIChart

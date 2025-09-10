@@ -11,11 +11,11 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
     // Efeito para injetar CSS e customizar a UI do scanner
     useEffect(() => {
         const style = document.createElement('style');
+        // ATUALIZAÇÃO: Adicionado #html5-qrcode-section-camera-selection para remover toda a seção.
         style.innerHTML = `
             #html5-qrcode-button-camera-stop, 
             #html5-qrcode-anchor-scan-type-change,
-            #html5-qrcode-select-camera,
-            label[for='html5-qrcode-select-camera'] {
+            #html5-qrcode-section-camera-selection {
                 display: none !important;
             }
         `;
