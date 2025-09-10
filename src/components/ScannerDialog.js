@@ -11,17 +11,54 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
     // Efeito para injetar CSS e customizar a UI do scanner
     useEffect(() => {
         const style = document.createElement('style');
-        // ATUALIZAÇÃO: Adicionado #html5-qrcode-section-camera-selection para remover toda a seção.
         style.innerHTML = `
+            /* Oculta elementos desnecessários */
             #html5-qrcode-button-camera-stop, 
             #html5-qrcode-anchor-scan-type-change,
-            #html5-qrcode-section-camera-selection {
+            #html5-qrcode-select-camera,
+            #html5-qrcode-section-header {
                 display: none !important;
+            }
+
+            /* Altera o texto do TÍTULO do diálogo de permissão */
+            #html5-qrcode-permission-dialog-title {
+                font-size: 0 !important; /* Esconde o texto original */
+            }
+
+            #html5-qrcode-permission-dialog-title::before {
+                content: "Permita o uso da câmera"; /* Adiciona o novo texto */
+                font-size: 1rem; /* Define um tamanho de fonte legível para o novo texto */
+                color: #000; /* Garante que o texto seja visível */
+            }
+
+            /* Altera o texto do BOTÃO de permissão */
+            #html5-qrcode-permission-button {
+                font-size: 0 !important; /* Esconde o texto original do botão */
+            }
+
+            #html5-qrcode-permission-button::before {
+                content: "Solicitar permissão de uso da câmera"; /* Adiciona o novo texto */
+                font-size: 1rem; /* Ajuste o tamanho da fonte conforme necessário */
             }
         `;
         document.head.appendChild(style);
+
+        const observer = new MutationObserver((mutations) => {
+            for (let mutation of mutations) {
+                if (mutation.addedNodes.length) {
+                    const permissionDialog = document.getElementById('html5-qrcode-permission-dialog');
+                    if (permissionDialog) {
+                       // O CSS já está aplicado, não precisamos fazer mais nada aqui
+                    }
+                }
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+
         return () => {
             document.head.removeChild(style);
+            observer.disconnect();
         };
     }, []);
 
@@ -34,10 +71,10 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
             {
                 fps: 10,
                 qrbox: { width: 250, height: 250 },
-                facingMode: "environment", // Prioriza a câmera traseira
-                showOpenFileButton: false, // Oculta o botão de arquivo padrão
+                facingMode: "environment",
+                showOpenFileButton: false,
             },
-            false // verbose
+            false
         );
         scannerInstanceRef.current = scanner;
 
@@ -95,7 +132,6 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
         if (!file) return;
 
         try {
-            // CORREÇÃO: Passa o ID do elemento para o construtor do Html5Qrcode
             const fileScanner = new Html5Qrcode(scannerRef.current.id);
             const result = await fileScanner.scanFile(file, false);
             onScanSuccess(result);
