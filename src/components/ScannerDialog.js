@@ -13,7 +13,9 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
         const style = document.createElement('style');
         style.innerHTML = `
             #html5-qrcode-button-camera-stop, 
-            #html5-qrcode-anchor-scan-type-change {
+            #html5-qrcode-anchor-scan-type-change,
+            #html5-qrcode-select-camera,
+            label[for='html5-qrcode-select-camera'] {
                 display: none !important;
             }
         `;
