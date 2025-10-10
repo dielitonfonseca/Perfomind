@@ -209,7 +209,7 @@ function Dashboard({ showPopup, setShowPopup }) {
         .filter(tech => tech.orc_aprovado && tech.orc_aprovado > 0)
         .map(tech => ({
           name: tech.name,
-          'Valor Orçamento (R$)': tech.orc_aprovado.toFixed(2)
+          'Valor Orçamento (R$)': tech.orc_aprovado // Mantendo como número para o cálculo
         }));
       setOrcamentoData(filteredOrcamento);
 
@@ -324,7 +324,6 @@ function Dashboard({ showPopup, setShowPopup }) {
   const lastWeekCommission = calculateCommission(lastWeekScore);
 
   const chartData = kpiData.slice(-8);
-
   const ltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [chartData]);
   const ltpdaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [chartData]);
   const exltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [chartData]);
@@ -340,6 +339,10 @@ function Dashboard({ showPopup, setShowPopup }) {
   const rnpsDaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'R-NPS DA': parseFloat(d['R-NPS DA']) })), [chartData]);
   const ssrVdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'SSR VD': parseFloat(d['SSR VD']) })), [chartData]);
   const ssrDaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'SSR DA': parseFloat(d['SSR DA']) })), [chartData]);
+
+  // --- ALTERAÇÃO AQUI ---
+  // 1. Calculamos o valor máximo do orçamento a partir do 'orcamentoData'.
+  const maxBudget = Math.max(...orcamentoData.map(item => item['Valor Orçamento (R$)']), 0);
 
   if (loading) {
     return <div className="no-data-message">Carregando dados do Firebase...</div>;
@@ -400,8 +403,11 @@ function Dashboard({ showPopup, setShowPopup }) {
                 >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} />
-                    <YAxis />
-                    <Tooltip formatter={(value) => `R$ ${parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />  
+                    {/* --- ALTERAÇÃO AQUI --- */}
+                    {/* 2. Usamos o 'maxBudget' para definir o domínio, adicionamos 30% e um valor padrão caso não haja dados. */}
+                    {/* 3. Removemos a segunda linha <YAxis /> que era redundante. */}
+                    <YAxis domain={[0, Math.round(maxBudget * 1.3) || 100]} />
+                    <Tooltip formatter={(value) => `R$ ${parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} /> 
                     <Bar dataKey="Valor Orçamento (R$)">
                         {orcamentoData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
