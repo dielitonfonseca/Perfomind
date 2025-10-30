@@ -576,7 +576,7 @@ function Dashboard({ showPopup, setShowPopup }) {
           data={inHomeD1ChartData}
           title=" IN HOME D+1 % ⬆️"
           dataKeys={[{ dataKey: 'IN HOME D+1', stroke: '#00C49F', name: 'IN HOME D+1' }]}
-          meta={{ value: 20, stroke: '#FF4081', label: 'Meta: 20%' }}
+          meta={{ value: 25, stroke: '#FF4081', label: 'Meta: 25%' }}
           tooltipContent={<CustomTooltip />}
           yAxisDomain={[0, 50]}
         />
