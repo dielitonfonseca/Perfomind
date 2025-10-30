@@ -42,7 +42,7 @@ function Form({ setFormData }) {
         const tecnicoSalvo = localStorage.getItem('tecnico');
         if (tecnicoSalvo) {
             if (
-                ['Dieliton Fonseca', 'Matheus Lindoso', 'Yago Giordanny', 'Pablo Henrique', 'Wallysson Cesar', 'João Pedro', 'Claudio Cris', 'Matheus Henrique'].includes(tecnicoSalvo)
+                ['Dieliton Fonseca', 'Matheus Lindoso', 'Yago Giordanny', 'Pablo Henrique', 'Wallysson Cesar', 'Claudio Cris', 'Matheus Henrique'].includes(tecnicoSalvo)
             ) {
                 setTecnicoSelect(tecnicoSalvo);
                 setTecnicoManual('');
@@ -524,7 +524,6 @@ ${obsText}
                     <option value="Matheus Lindoso">Matheus Lindoso</option>
                     <option value="Claudio Cris">Claudio Cris</option>
                     <option value="Wallysson Cesar">Wallysson Cesar</option>
-                    <option value="João Pedro">João Pedro</option>
                     <option value="Pablo Henrique">Pablo Henrique</option>
                     <option value="Matheus Henrique">Matheus Henrique</option>
                     <option value="Yago Giordanny">Yago Giordanny</option>
