@@ -12,6 +12,20 @@ const globalStyles = `
     --theme-input-bg: #333;
   }
 
+  /* --- CORREÇÃO DO LAYOUT (IMPEDE QUEBRA DA TELA) --- */
+  .dashboard-container {
+    width: 100%;
+    max-width: 100vw; /* Garante que não ultrapasse a largura da janela */
+    overflow-x: hidden; /* Esconde qualquer estouro horizontal */
+    box-sizing: border-box;
+    padding-bottom: 50px; /* Espaço extra no final */
+  }
+
+  .dashboard-section {
+    width: 100%;
+    box-sizing: border-box; /* Garante que o padding não aumente a largura */
+  }
+
   /* Tooltip Style */
   .info-icon-container {
     display: inline-block;
@@ -39,7 +53,7 @@ const globalStyles = `
     border-radius: 6px;
     padding: 8px;
     position: absolute;
-    z-index: 1;
+    z-index: 10; /* Z-index alto para ficar acima de tudo */
     bottom: 125%;
     left: 50%;
     margin-left: -110px;
@@ -82,6 +96,8 @@ const globalStyles = `
     background: #333;
     padding: 15px;
     border-radius: 10px;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .filter-group {
@@ -99,15 +115,17 @@ const globalStyles = `
   .filter-input {
     padding: 8px;
     border-radius: 4px;
-    border: 1px solid #555; /* Borda padrão */
+    border: 1px solid #555;
     background: #222;
     color: #fff;
     outline: none;
     transition: border-color 0.3s;
+    width: 100%; /* Ocupa 100% do grupo */
+    box-sizing: border-box;
   }
 
   .filter-input:focus {
-    border-color: var(--theme-color); /* Foco na cor do tema */
+    border-color: var(--theme-color);
   }
 
   .filter-btn-container {
@@ -127,34 +145,36 @@ const globalStyles = `
     height: 35px;
   }
 
-  /* Layout Mobile: Aproximar itens e colocar 2 por linha */
+  /* Layout Mobile: Aproximar itens e ajustar margens */
   @media (max-width: 768px) {
     .dashboard-section {
         margin-top: 10px !important;
         padding: 10px !important;
+        width: 100%;
+        overflow: hidden; /* Evita que o conteúdo interno estoure */
     }
 
     .filter-container {
-      gap: 5px; /* Reduzido drasticamente para economizar espaço */
+      gap: 8px; 
       padding: 10px;
       justify-content: space-between; 
     }
     
     .filter-group {
-      width: 48%; /* Ocupa quase metade da tela */
+      width: 48%; /* 2 por linha */
       min-width: 0; 
       margin-bottom: 5px;
     }
 
     .filter-label {
-      margin-bottom: 1px;
-      font-size: 0.75em; /* Fonte menor no label */
+      margin-bottom: 2px;
+      font-size: 0.75em;
     }
 
     .filter-input {
-      padding: 4px; /* Input mais fino */
+      padding: 4px;
       font-size: 0.8em;
-      height: 30px;
+      height: 32px;
     }
 
     .filter-btn-container {
@@ -175,6 +195,8 @@ const globalStyles = `
     justify-content: space-around;
     margin: 30px 0;
     gap: 15px;
+    width: 100%;
+    box-sizing: border-box;
   }
   
   .summary-card {
@@ -204,6 +226,13 @@ const globalStyles = `
     .summary-card { padding: 8px; min-width: 0; }
     .summary-title { font-size: 0.65em; }
     .summary-value { font-size: 16px; margin: 2px 0; }
+  }
+  
+  /* Ajuste no container do gráfico para não estourar */
+  .chart-wrapper {
+    width: 100%;
+    height: 350px;
+    overflow: hidden; /* Essencial para gráficos responsivos */
   }
 `;
 
@@ -302,11 +331,12 @@ const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [
   }
 
   return (
-    <div className="kpi-chart-container">
+    <div className="kpi-chart-container" style={{ width: '100%', overflow: 'hidden' }}>
       <h3>{title} </h3>
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 5, right: 80, left: 0, bottom: 5 }}>
+          {/* --- CORREÇÃO DE MARGEM AQUI --- */}
+          <LineChart data={data} margin={{ top: 25, right: 40, left: 10, bottom: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#444" />
             <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
             <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={yAxisDomain} />
@@ -720,7 +750,8 @@ function Dashboard({ showPopup, setShowPopup }) {
   const currentMetricInfo = METRIC_DEFINITIONS[filterMetric];
 
   return (
-    <div className="output">
+    // ADICIONADA CLASS 'dashboard-container' PARA CORRIGIR OVERFLOW
+    <div className="output dashboard-container">
         <style>{globalStyles}</style>
         <PerformancePopup isOpen={showPopup} onClose={() => setShowPopup(false)} kpiData={kpiData} />
       
@@ -806,7 +837,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                     </div>
                 </div>
 
-                <div style={{ width: '100%', height: 350 }}>
+                <div className="chart-wrapper">
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={filteredResults.chartData}>
                             <CartesianGrid stroke="#444" strokeDasharray="3 3" />
