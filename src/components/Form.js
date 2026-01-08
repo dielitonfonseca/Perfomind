@@ -61,7 +61,6 @@ function Form({ setFormData }) {
         }
     }, [tecnicoSelect, tecnicoManual]);
 
-    // NOVO: useEffect para limpar os campos de orçamento/limpeza ao trocar para Assurant
     useEffect(() => {
         if (!isSamsung) {
             setOrcamentoAprovado(false);
@@ -69,6 +68,15 @@ function Form({ setFormData }) {
             setLimpezaAprovada(false);
         }
     }, [isSamsung]);
+
+    // --- FUNÇÃO AUXILIAR PARA PEGAR A SEMANA DO ANO (ISO 8601) ---
+    const getISOWeek = (date) => {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    };
 
     const validarNumero = (num, tipo) => {
         const padraoSamsung = /^417\d{7}$/;
@@ -91,7 +99,7 @@ function Form({ setFormData }) {
 
         let obsText = '';
         if (orcamentoAprovado && orcamentoValor) {
-            obsText += `Orçamento aprovado: ${orcamentoValor}\n`;
+            obsText += `Orçamento aprovado: R$ ${orcamentoValor}\n`;
         }
         if (limpezaAprovada) {
             obsText += 'Limpeza realizada\n';
@@ -190,11 +198,20 @@ ${obsText}
         setFormData(resultadoTexto);
 
         try {
-            // --- SALVAR DADOS DA OS ---
+            // --- CÁLCULOS DE DATA E SEMANA ---
             const today = new Date();
+            const weekNumber = getISOWeek(today);
+            const year = today.getFullYear();
+            
             const dateString = today.getFullYear() + '-' +
                 String(today.getMonth() + 1).padStart(2, '0') + '-' +
                 String(today.getDate()).padStart(2, '0');
+            
+            // Formatando Data e Hora para exibição (ex: 28/10/2023 14:30)
+            const dataHoraFormatada = today.toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
 
             const tecnicoDocRef = doc(db, 'ordensDeServico', tecnicoFinal);
             await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true });
@@ -207,6 +224,9 @@ ${obsText}
             const targetCollectionRef = collection(dataDocRef, targetCollectionName);
             const osDocRef = doc(targetCollectionRef, numeroOS);
 
+            // Prepara o valor do orçamento
+            const valorNumerico = (orcamentoAprovado && orcamentoValor) ? parseFloat(orcamentoValor) : 0;
+
             await setDoc(osDocRef, {
                 numeroOS: numeroOS,
                 cliente: clienteNome,
@@ -218,11 +238,19 @@ ${obsText}
                 ppidPecaNova: ppidPecaNova,
                 ppidPecaUsada: ppidPecaUsada,
                 observacoes: observacoes,
+                
+                // NOVOS MARCADORES DE TEMPO
+                semana: weekNumber,
+                ano: year,
+                valorOrcamento: valorNumerico,
+                isLimpeza: limpezaAprovada,
+                dataHoraCriacao: dataHoraFormatada, // Campo string legível
+                
                 dataGeracao: serverTimestamp(),
                 dataGeracaoLocal: new Date().toISOString()
             });
 
-            // --- ATUALIZAR ESTATÍSTICAS DO TÉCNICO (LÓGICA INTEGRADA) ---
+            // --- ATUALIZAR ESTATÍSTICAS DO TÉCNICO ---
             const statsDocRef = doc(db, 'technicianStats', tecnicoFinal);
             const statsDoc = await getDoc(statsDocRef);
 
@@ -233,12 +261,9 @@ ${obsText}
                 assurantOS: increment(tipoOS === 'assurant' ? 1 : 0),
             };
 
-            if (orcamentoAprovado && orcamentoValor) {
-                const valorNumerico = parseFloat(orcamentoValor);
-                if (!isNaN(valorNumerico)) {
-                    statsUpdateData.orc_aprovado = increment(valorNumerico);
-                    statsUpdateData.lista_orcamentos_aprovados = arrayUnion(numeroOS);
-                }
+            if (valorNumerico > 0) {
+                statsUpdateData.orc_aprovado = increment(valorNumerico);
+                statsUpdateData.lista_orcamentos_aprovados = arrayUnion(numeroOS);
             }
 
             if (limpezaAprovada) {
@@ -253,17 +278,29 @@ ${obsText}
                     totalOS: 1,
                     samsungOS: tipoOS === 'samsung' ? 1 : 0,
                     assurantOS: tipoOS === 'assurant' ? 1 : 0,
-                    orc_aprovado: 0,
-                    limpezas_realizadas: 0,
-                    lista_orcamentos_aprovados: [],
-                    lista_limpezas: [],
+                    orc_aprovado: valorNumerico, 
+                    limpezas_realizadas: limpezaAprovada ? 1 : 0,
+                    lista_orcamentos_aprovados: valorNumerico > 0 ? [numeroOS] : [],
+                    lista_limpezas: limpezaAprovada ? [numeroOS] : [],
                     ...statsUpdateData, 
                 };
-                await setDoc(statsDocRef, initialStatsData);
+                delete initialStatsData.orc_aprovado; 
+                delete initialStatsData.totalOS;
+                delete initialStatsData.samsungOS;
+                delete initialStatsData.assurantOS;
+                
+                await setDoc(statsDocRef, {
+                    ...initialStatsData,
+                    totalOS: 1,
+                    samsungOS: tipoOS === 'samsung' ? 1 : 0,
+                    assurantOS: tipoOS === 'assurant' ? 1 : 0,
+                    orc_aprovado: valorNumerico,
+                    limpezas_realizadas: limpezaAprovada ? 1 : 0
+                });
             }
 
             console.log('Ordem de serviço e estatísticas atualizadas com sucesso!');
-            alert('Resumo gerado e dados salvos com sucesso!');
+            alert(`Resumo gerado! OS registrada na Semana ${weekNumber}.`);
 
         } catch (e) {
             console.error("Erro ao adicionar documento: ", e);
@@ -312,7 +349,6 @@ ${obsText}
 
             const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
             
-            // Lógica para obter o texto do defeito/reparo selecionado
             let defeitoFinalText = defeitoManual;
             let reparoFinalText = reparoManual;
             if(isSamsung) {
@@ -337,7 +373,6 @@ ${obsText}
                 dataFormatada = `${dia}/${mes}/${ano}`;
             }
 
-            // *** INÍCIO DA LÓGICA CORRIGIDA ***
             if (tipoAparelho === 'VD') {
                 drawText("FERNANDES COMUNICAÇÕES", 119, height - 72);
                 drawText(cliente, 90, height - 85);
@@ -423,7 +458,6 @@ ${obsText}
                     });
                 }
             }
-            // *** FIM DA LÓGICA CORRIGIDA ***
 
             const pdfBytes = await pdfDoc.save();
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
