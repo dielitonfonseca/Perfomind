@@ -336,7 +336,7 @@ const KPIChart = ({ data, title, dataKeys, meta, tooltipContent, yAxisDomain = [
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer width="100%" height="100%">
           {/* --- CORREÇÃO DE MARGEM AQUI --- */}
-          <LineChart data={data} margin={{ top: 25, right: 40, left: 10, bottom: 10 }}>
+          <LineChart data={data} margin={{ top: 25, right: 80, left: 10, bottom: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#444" />
             <XAxis dataKey="name" stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} />
             <YAxis stroke="#e0e0e0" tick={{ fill: '#e0e0e0' }} domain={yAxisDomain} />
