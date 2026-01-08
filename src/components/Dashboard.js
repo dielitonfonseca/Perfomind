@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../firebaseConfig';
-// ADICIONADO: setDoc e getDoc para gerenciar o cache
+// ADICIONADO: useRef para o scroll
 import { collection, onSnapshot, query, orderBy, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label, Cell, ComposedChart } from 'recharts';
 
@@ -78,6 +78,54 @@ const globalStyles = `
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: #555 #2a2a2a;
+  }
+
+  /* --- NOVOS ESTILOS RESPONSIVOS PARA OS CARDS DE RESUMO --- */
+  .summary-container {
+    display: flex;
+    justify-content: space-around;
+    margin: 30px 0;
+    gap: 15px;
+  }
+  
+  .summary-card {
+    text-align: center;
+    padding: 15px;
+    background: #333;
+    border-radius: 8px;
+    min-width: 150px;
+    flex: 1; /* Permite crescer igualmente */
+  }
+
+  .summary-title {
+    margin: 0;
+    color: #ccc;
+    font-size: 0.9em;
+    text-transform: uppercase;
+  }
+
+  .summary-value {
+    font-size: 24px;
+    font-weight: bold;
+    margin: 5px 0;
+  }
+
+  /* Ajustes Mobile */
+  @media (max-width: 768px) {
+    .summary-container {
+      margin: 15px 0;
+      gap: 10px;
+    }
+    .summary-card {
+      padding: 10px;
+      min-width: 0; /* Permite encolher abaixo de 150px se necessário */
+    }
+    .summary-title {
+      font-size: 0.7em; /* Fonte menor no título */
+    }
+    .summary-value {
+      font-size: 18px; /* Fonte menor no valor */
+    }
   }
 `;
 
@@ -262,6 +310,9 @@ function Dashboard({ showPopup, setShowPopup }) {
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   
+  // Ref para o scroll automático
+  const chartRef = useRef(null);
+
   const [filterType, setFilterType] = useState('week'); 
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
@@ -279,6 +330,16 @@ function Dashboard({ showPopup, setShowPopup }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // --- SCROLL AUTOMÁTICO NO MOBILE QUANDO OS DADOS MUDAM ---
+  useEffect(() => {
+    if (isMobile && filteredResults && chartRef.current) {
+        // Pequeno timeout para garantir que o render ocorreu
+        setTimeout(() => {
+            chartRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+    }
+  }, [filteredResults, isMobile]);
+
   // --- 1. TENTAR CARREGAR O CACHE DO FIREBASE AO INICIAR ---
   useEffect(() => {
     const loadCachedState = async () => {
@@ -288,7 +349,6 @@ function Dashboard({ showPopup, setShowPopup }) {
 
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // Restaurar Filtros
                 setFilterType(data.filters.filterType || 'week');
                 setFilterStartDate(data.filters.filterStartDate || '');
                 setFilterEndDate(data.filters.filterEndDate || '');
@@ -296,7 +356,6 @@ function Dashboard({ showPopup, setShowPopup }) {
                 setFilterTech(data.filters.filterTech || 'Todos');
                 setFilterMetric(data.filters.filterMetric || 'productivity');
                 
-                // Restaurar Resultados Prontos (Gráfico e Tabela)
                 if (data.results) {
                     setFilteredResults(data.results);
                 }
@@ -305,8 +364,6 @@ function Dashboard({ showPopup, setShowPopup }) {
             console.warn("Erro ao carregar cache do dashboard:", e);
         }
     };
-    
-    // Executa a busca do cache uma vez ao montar
     loadCachedState();
   }, []);
 
@@ -352,7 +409,6 @@ function Dashboard({ showPopup, setShowPopup }) {
       }
       setKpiData(sortedKpis);
 
-      // Só define como 'current' se NÃO tivermos carregado um cache (selectedWeek ainda vazio)
       if (sortedKpis.length > 0 && !initialLoadDone && selectedWeek === '') {
           setSelectedWeek('current');
       }
@@ -360,12 +416,11 @@ function Dashboard({ showPopup, setShowPopup }) {
 
     unsubscribes.push(unsubscribeKpis);
     return () => unsubscribes.forEach(unsubscribe => unsubscribe());
-  }, []); // Dependências vazias para rodar apenas na montagem
+  }, []); 
 
   // --- 3. TRIGGER AUTOMÁTICO DE FILTRO (REFRESH) ---
   useEffect(() => {
       if (technicianRanking.length > 0 && selectedWeek !== '' && kpiData.length > 0) {
-          // O usuário vê o cache, mas isso roda em background para garantir dados frescos
           handleFilter();
           setInitialLoadDone(true);
       }
@@ -414,13 +469,11 @@ function Dashboard({ showPopup, setShowPopup }) {
         endStr = range.end;
     } else {
         if (!filterStartDate || !filterEndDate) {
-            // Se estiver faltando data, não faz nada (pode ser o cache carregando)
             return;
         }
     }
 
     setIsFiltering(true);
-    // Não limpa setFilteredResults(null) para manter o cache visível enquanto atualiza
 
     const start = new Date(startStr);
     const end = new Date(endStr);
@@ -455,7 +508,6 @@ function Dashboard({ showPopup, setShowPopup }) {
                     const processDoc = (docSnap) => {
                         const data = docSnap.data();
 
-                        // FILTRO: Ignora se não tiver Data/Hora (dados antigos)
                         if (!data.dataHoraCriacao) {
                             return; 
                         }
@@ -541,8 +593,6 @@ function Dashboard({ showPopup, setShowPopup }) {
 
         setFilteredResults(resultsObj);
 
-        // --- SALVAR NO CACHE DO FIREBASE ---
-        // Salvamos os filtros atuais e o resultado processado
         try {
             await setDoc(doc(db, 'dashboard_cache', 'last_state'), {
                 updatedAt: new Date().toISOString(),
@@ -562,7 +612,6 @@ function Dashboard({ showPopup, setShowPopup }) {
 
     } catch (e) {
         console.error("Erro filtro:", e);
-        // alert("Erro ao buscar dados."); // Comentado para não atrapalhar o refresh automatico silencioso
     } finally {
         setIsFiltering(false);
     }
@@ -590,7 +639,6 @@ function Dashboard({ showPopup, setShowPopup }) {
   if (loading) return <div className="no-data-message">Carregando dados do Firebase...</div>;
   if (error) return <div className="error-message">{error}</div>;
 
-  // Lógica de Filtro da Tabela Detalhada
   const detailedListDisplay = filteredResults ? (
     (filterMetric === 'avgApprovedRevenue' || filterMetric === 'adjustedProductivity') 
         ? filteredResults.detailedList.filter(item => item.value > 0)
@@ -671,20 +719,19 @@ function Dashboard({ showPopup, setShowPopup }) {
 
         {filteredResults && (
             <div className="filter-results">
-                <div style={{ display: 'flex', justifyContent: 'space-around', margin: '30px 0' }}>
-                    <div style={{ textAlign: 'center', padding: '15px', background: '#333', borderRadius: '8px', minWidth: '150px' }}>
-                        <h4 style={{ margin: 0, color: '#ccc', fontSize: '0.9em' }}>TOTAL OS</h4>
-                        <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '5px 0' }}>{filteredResults.totalOS}</p>
+                {/* --- CONTAINER DE RESUMO RESPONSIVO --- */}
+                <div className="summary-container">
+                    <div className="summary-card">
+                        <h4 className="summary-title">TOTAL OS</h4>
+                        <p className="summary-value" style={{ color: '#fff' }}>{filteredResults.totalOS}</p>
                     </div>
                     
-                    <div style={{ textAlign: 'center', padding: '15px', background: '#333', borderRadius: '8px', minWidth: '150px' }}>
+                    <div className="summary-card">
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <h4 style={{ margin: 0, color: '#ccc', fontSize: '0.9em', textTransform: 'uppercase' }}>
-                                {currentMetricInfo.title}
-                            </h4>
+                            <h4 className="summary-title">{currentMetricInfo.title}</h4>
                             <InfoPopup text={currentMetricInfo.tooltip} />
                         </div>
-                        <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '5px 0', color: '#00C49F' }}>
+                        <p className="summary-value" style={{ color: '#00C49F' }}>
                             {currentMetricInfo.prefix}
                             {(filteredResults.summaryValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             {currentMetricInfo.suffix}
@@ -692,7 +739,8 @@ function Dashboard({ showPopup, setShowPopup }) {
                     </div>
                 </div>
 
-                <div style={{ width: '100%', height: 350 }}>
+                {/* Container do Gráfico com Ref para Scroll */}
+                <div ref={chartRef} style={{ width: '100%', height: 350 }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={filteredResults.chartData}>
                             <CartesianGrid stroke="#444" strokeDasharray="3 3" />
@@ -751,7 +799,7 @@ function Dashboard({ showPopup, setShowPopup }) {
       <div className="dashboard-section" style={{ marginTop: '20px', padding: '20px', background: '#222', borderRadius: '8px' }}>
           <h3>KPIs de Desempenho 🚀</h3>
           <div className={`kpi-grid ${isMobile ? 'mobile' : ''}`}>
-             {/* Charts de KPIs (código omitido para brevidade, mas está aqui) */}
+             {/* Charts KPIs mantidos */}
             <KPIChart data={ltpvdChartData} title=" LTP VD % " dataKeys={[{ dataKey: 'LTP VD %', stroke: '#8884d8', name: 'LTP VD %' }]} meta={[{ value: 12.8, stroke: '#ffc658', label: 'Meta: 12.8%' }, { value: 5, stroke: '#FF0000', label: 'P4P: 5%' }]} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 40]} />
             <KPIChart data={ltpdaChartData} title=" LTP DA % ⬇️" dataKeys={[{ dataKey: 'LTP DA %', stroke: '#ff7300', name: 'LTP DA %' }]} meta={[{ value: 17.4, stroke: '#00C49F', label: 'Meta: 17.4%' }, { value: 7, stroke: '#FFD700', label: 'P4P: 7%' }]} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 40]} />
             <KPIChart data={exltpvdChartData} title=" EX LTP VD % ⬇️" dataKeys={[{ dataKey: 'EX LTP VD %', stroke: '#3366FF', name: 'EX LTP VD %' }]} meta={{ value: 1.44, stroke: '#FFCC00', label: 'Meta: 1.44%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 10]} />
