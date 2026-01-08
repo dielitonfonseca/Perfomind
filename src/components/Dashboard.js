@@ -1,11 +1,17 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
-// ADICIONADO: useRef para o scroll
 import { collection, onSnapshot, query, orderBy, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label, Cell, ComposedChart } from 'recharts';
 
 // --- ESTILOS CSS GLOBAIS ---
 const globalStyles = `
+  /* Variáveis de Cor */
+  :root {
+    --theme-color: #00C49F;
+    --theme-bg: #222;
+    --theme-input-bg: #333;
+  }
+
   /* Tooltip Style */
   .info-icon-container {
     display: inline-block;
@@ -59,28 +65,111 @@ const globalStyles = `
     opacity: 1;
   }
 
-  /* Scrollbar Minimalista (Dark Mode) */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: #2a2a2a;
-    border-radius: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #555;
-    border-radius: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #777;
-  }
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: #555 #2a2a2a;
+  /* Scrollbar Minimalista */
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #2a2a2a; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #777; }
+  .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #555 #2a2a2a; }
+
+  /* --- LAYOUT DE FILTROS COMPACTO E RESPONSIVO --- */
+  .filter-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: flex-end;
+    justify-content: center;
+    background: #333;
+    padding: 15px;
+    border-radius: 10px;
   }
 
-  /* --- NOVOS ESTILOS RESPONSIVOS PARA OS CARDS DE RESUMO --- */
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 150px;
+  }
+
+  .filter-label {
+    color: #ccc;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+  }
+
+  .filter-input {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #555; /* Borda padrão */
+    background: #222;
+    color: #fff;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+
+  .filter-input:focus {
+    border-color: var(--theme-color); /* Foco na cor do tema */
+  }
+
+  .filter-btn-container {
+    align-self: flex-end;
+  }
+
+  .filter-btn {
+    padding: 8px 25px;
+    background: var(--theme-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.9em;
+    height: 35px;
+  }
+
+  /* Layout Mobile: Aproximar itens e colocar 2 por linha */
+  @media (max-width: 768px) {
+    .dashboard-section {
+        margin-top: 10px !important;
+        padding: 10px !important;
+    }
+
+    .filter-container {
+      gap: 5px; /* Reduzido drasticamente para economizar espaço */
+      padding: 10px;
+      justify-content: space-between; 
+    }
+    
+    .filter-group {
+      width: 48%; /* Ocupa quase metade da tela */
+      min-width: 0; 
+      margin-bottom: 5px;
+    }
+
+    .filter-label {
+      margin-bottom: 1px;
+      font-size: 0.75em; /* Fonte menor no label */
+    }
+
+    .filter-input {
+      padding: 4px; /* Input mais fino */
+      font-size: 0.8em;
+      height: 30px;
+    }
+
+    .filter-btn-container {
+      width: 100%;
+      margin-top: 5px;
+    }
+    
+    .filter-btn {
+      width: 100%;
+      height: 35px;
+      font-size: 0.85em;
+    }
+  }
+
+  /* --- CARDS DE RESUMO --- */
   .summary-container {
     display: flex;
     justify-content: space-around;
@@ -94,7 +183,7 @@ const globalStyles = `
     background: #333;
     border-radius: 8px;
     min-width: 150px;
-    flex: 1; /* Permite crescer igualmente */
+    flex: 1;
   }
 
   .summary-title {
@@ -110,22 +199,11 @@ const globalStyles = `
     margin: 5px 0;
   }
 
-  /* Ajustes Mobile */
   @media (max-width: 768px) {
-    .summary-container {
-      margin: 15px 0;
-      gap: 10px;
-    }
-    .summary-card {
-      padding: 10px;
-      min-width: 0; /* Permite encolher abaixo de 150px se necessário */
-    }
-    .summary-title {
-      font-size: 0.7em; /* Fonte menor no título */
-    }
-    .summary-value {
-      font-size: 18px; /* Fonte menor no valor */
-    }
+    .summary-container { margin: 10px 0; gap: 8px; }
+    .summary-card { padding: 8px; min-width: 0; }
+    .summary-title { font-size: 0.65em; }
+    .summary-value { font-size: 16px; margin: 2px 0; }
   }
 `;
 
@@ -310,13 +388,12 @@ function Dashboard({ showPopup, setShowPopup }) {
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   
-  // Ref para o scroll automático
-  const chartRef = useRef(null);
-
   const [filterType, setFilterType] = useState('week'); 
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [selectedWeek, setSelectedWeek] = useState('');
+  
+  // INICIO COM 'Todos'
   const [filterTech, setFilterTech] = useState('Todos');
   const [filterMetric, setFilterMetric] = useState('productivity'); 
 
@@ -330,17 +407,7 @@ function Dashboard({ showPopup, setShowPopup }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // --- SCROLL AUTOMÁTICO NO MOBILE QUANDO OS DADOS MUDAM ---
-  useEffect(() => {
-    if (isMobile && filteredResults && chartRef.current) {
-        // Pequeno timeout para garantir que o render ocorreu
-        setTimeout(() => {
-            chartRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-    }
-  }, [filteredResults, isMobile]);
-
-  // --- 1. TENTAR CARREGAR O CACHE DO FIREBASE AO INICIAR ---
+  // --- 1. CARREGAR CACHE (MAS FORÇAR TÉCNICO = TODOS) ---
   useEffect(() => {
     const loadCachedState = async () => {
         try {
@@ -353,7 +420,10 @@ function Dashboard({ showPopup, setShowPopup }) {
                 setFilterStartDate(data.filters.filterStartDate || '');
                 setFilterEndDate(data.filters.filterEndDate || '');
                 setSelectedWeek(data.filters.selectedWeek || '');
-                setFilterTech(data.filters.filterTech || 'Todos');
+                
+                // CORREÇÃO: Força 'Todos' independente do que estava no cache
+                setFilterTech('Todos');
+                
                 setFilterMetric(data.filters.filterMetric || 'productivity');
                 
                 if (data.results) {
@@ -367,7 +437,7 @@ function Dashboard({ showPopup, setShowPopup }) {
     loadCachedState();
   }, []);
 
-  // --- 2. LISTENERS DO FIREBASE (DADOS REAIS) ---
+  // --- 2. LISTENERS DO FIREBASE ---
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -418,7 +488,7 @@ function Dashboard({ showPopup, setShowPopup }) {
     return () => unsubscribes.forEach(unsubscribe => unsubscribe());
   }, []); 
 
-  // --- 3. TRIGGER AUTOMÁTICO DE FILTRO (REFRESH) ---
+  // --- 3. REFRESH AUTOMÁTICO ---
   useEffect(() => {
       if (technicianRanking.length > 0 && selectedWeek !== '' && kpiData.length > 0) {
           handleFilter();
@@ -618,6 +688,8 @@ function Dashboard({ showPopup, setShowPopup }) {
   };
 
   const chartData = kpiData.slice(-10);
+  
+  // -- APLICAÇÃO DA COR #00C49F ONDE ERA AZUL --
   const ltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [chartData]);
   const ltpdaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [chartData]);
   const exltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [chartData]);
@@ -655,10 +727,11 @@ function Dashboard({ showPopup, setShowPopup }) {
       <div className="dashboard-section" style={{ marginTop: '20px', padding: '20px', background: '#222', borderRadius: '8px' }}>
         <h3>Relatórios Detalhados 📊</h3>
         
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-end', justifyContent: 'center', background: '#333', padding: '15px', borderRadius: '10px' }}>
-             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ color: '#ccc', marginBottom: '5px', fontSize: '0.9em' }}>Intervalo:</label>
-                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#fff', minWidth: '150px' }}>
+        {/* --- CONTAINER DE FILTROS COM CSS RESPONSIVO (CLASSES) --- */}
+        <div className="filter-container">
+             <div className="filter-group">
+                <label className="filter-label">Intervalo:</label>
+                <select className="filter-input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
                     <option value="week">Semanal</option>
                     <option value="date">Por data</option>
                 </select>
@@ -666,19 +739,19 @@ function Dashboard({ showPopup, setShowPopup }) {
 
             {filterType === 'date' ? (
                 <>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={{ color: '#ccc', marginBottom: '5px', fontSize: '0.9em' }}>Data Início:</label>
-                        <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#fff' }} />
+                    <div className="filter-group">
+                        <label className="filter-label">Data Início:</label>
+                        <input className="filter-input" type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} />
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={{ color: '#ccc', marginBottom: '5px', fontSize: '0.9em' }}>Data Fim:</label>
-                        <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#fff' }} />
+                    <div className="filter-group">
+                        <label className="filter-label">Data Fim:</label>
+                        <input className="filter-input" type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
                     </div>
                 </>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <label style={{ color: '#ccc', marginBottom: '5px', fontSize: '0.9em' }}>Semana:</label>
-                    <select value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#fff', minWidth: '150px' }}>
+                <div className="filter-group">
+                    <label className="filter-label">Semana:</label>
+                    <select className="filter-input" value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)}>
                         {kpiData.map(kpi => (
                             <option key={kpi.week} value={kpi.week}>Semana {String(kpi.week).padStart(2, '0')}</option>
                         ))}
@@ -687,17 +760,17 @@ function Dashboard({ showPopup, setShowPopup }) {
                 </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ color: '#ccc', marginBottom: '5px', fontSize: '0.9em' }}>Técnico:</label>
-                <select value={filterTech} onChange={(e) => setFilterTech(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#fff', minWidth: '150px' }}>
+            <div className="filter-group">
+                <label className="filter-label">Técnico:</label>
+                <select className="filter-input" value={filterTech} onChange={(e) => setFilterTech(e.target.value)}>
                     <option value="Todos">Todos</option>
                     {technicianRanking.map(tech => <option key={tech.name} value={tech.name}>{tech.name}</option>)}
                 </select>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ color: '#ccc', marginBottom: '5px', fontSize: '0.9em' }}>Filtro:</label>
-                <select value={filterMetric} onChange={(e) => setFilterMetric(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#222', color: '#fff', minWidth: '150px' }}>
+            <div className="filter-group">
+                <label className="filter-label">Filtro:</label>
+                <select className="filter-input" value={filterMetric} onChange={(e) => setFilterMetric(e.target.value)}>
                     <option value="productivity">Produtividade</option>
                     <option value="adjustedProductivity">Produtividade Ajustada</option>
                     <option value="avgApprovedRevenue">Média Orçamento Aprovado</option>
@@ -705,21 +778,15 @@ function Dashboard({ showPopup, setShowPopup }) {
                 </select>
             </div>
 
-            <button 
-                onClick={handleFilter} 
-                disabled={isFiltering}
-                style={{ 
-                    padding: '8px 25px', background: '#00C49F', color: 'white', border: 'none', borderRadius: '4px', 
-                    cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.9em', height: '35px', alignSelf: 'flex-end' 
-                }}
-            >
-                {isFiltering ? '...' : 'BUSCAR'}
-            </button>
+            <div className="filter-btn-container">
+                <button className="filter-btn" onClick={handleFilter} disabled={isFiltering}>
+                    {isFiltering ? '...' : 'BUSCAR'}
+                </button>
+            </div>
         </div>
 
         {filteredResults && (
             <div className="filter-results">
-                {/* --- CONTAINER DE RESUMO RESPONSIVO --- */}
                 <div className="summary-container">
                     <div className="summary-card">
                         <h4 className="summary-title">TOTAL OS</h4>
@@ -739,8 +806,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                     </div>
                 </div>
 
-                {/* Container do Gráfico com Ref para Scroll */}
-                <div ref={chartRef} style={{ width: '100%', height: 350 }}>
+                <div style={{ width: '100%', height: 350 }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={filteredResults.chartData}>
                             <CartesianGrid stroke="#444" strokeDasharray="3 3" />
@@ -755,8 +821,8 @@ function Dashboard({ showPopup, setShowPopup }) {
                                 return parseFloat(value).toFixed(2);
                             }} />
                             <Legend />
-                            {filterMetric === 'revenuePerOrder' && <Line yAxisId="left" type="monotone" dataKey="revenuePerOrder" name="Receita Média por Ordem" stroke="#FFBB28" strokeWidth={3} />}
-                            {filterMetric === 'productivity' && <Bar yAxisId="left" dataKey="osCount" name="Produtividade" barSize={20} fill="#82ca9d" />}
+                            {filterMetric === 'revenuePerOrder' && <Line yAxisId="left" type="monotone" dataKey="revenuePerOrder" name="Receita Média por Ordem" stroke="#00C49F" strokeWidth={3} />}
+                            {filterMetric === 'productivity' && <Bar yAxisId="left" dataKey="osCount" name="Produtividade" barSize={20} fill="#00C49F" />}
                             {filterMetric === 'adjustedProductivity' && <Line yAxisId="left" type="monotone" dataKey="adjustedProductivity" name="Produtividade Ajustada" stroke="#FF8042" strokeWidth={3} />}
                             {filterMetric === 'avgApprovedRevenue' && <Line yAxisId="left" type="monotone" dataKey="avgApprovedRevenue" name="Receita Média por OS" stroke="#00C49F" strokeWidth={3} />}
                         </ComposedChart>
@@ -799,23 +865,23 @@ function Dashboard({ showPopup, setShowPopup }) {
       <div className="dashboard-section" style={{ marginTop: '20px', padding: '20px', background: '#222', borderRadius: '8px' }}>
           <h3>KPIs de Desempenho 🚀</h3>
           <div className={`kpi-grid ${isMobile ? 'mobile' : ''}`}>
-             {/* Charts KPIs mantidos */}
-            <KPIChart data={ltpvdChartData} title=" LTP VD % " dataKeys={[{ dataKey: 'LTP VD %', stroke: '#8884d8', name: 'LTP VD %' }]} meta={[{ value: 12.8, stroke: '#ffc658', label: 'Meta: 12.8%' }, { value: 5, stroke: '#FF0000', label: 'P4P: 5%' }]} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 40]} />
+            {/* GRÁFICOS COM A COR #00C49F APLICADA NO LUGAR DOS AZUIS */}
+            <KPIChart data={ltpvdChartData} title=" LTP VD % " dataKeys={[{ dataKey: 'LTP VD %', stroke: '#00C49F', name: 'LTP VD %' }]} meta={[{ value: 12.8, stroke: '#ffc658', label: 'Meta: 12.8%' }, { value: 5, stroke: '#FF0000', label: 'P4P: 5%' }]} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 40]} />
             <KPIChart data={ltpdaChartData} title=" LTP DA % ⬇️" dataKeys={[{ dataKey: 'LTP DA %', stroke: '#ff7300', name: 'LTP DA %' }]} meta={[{ value: 17.4, stroke: '#00C49F', label: 'Meta: 17.4%' }, { value: 7, stroke: '#FFD700', label: 'P4P: 7%' }]} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 40]} />
-            <KPIChart data={exltpvdChartData} title=" EX LTP VD % ⬇️" dataKeys={[{ dataKey: 'EX LTP VD %', stroke: '#3366FF', name: 'EX LTP VD %' }]} meta={{ value: 1.44, stroke: '#FFCC00', label: 'Meta: 1.44%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 10]} />
+            <KPIChart data={exltpvdChartData} title=" EX LTP VD % ⬇️" dataKeys={[{ dataKey: 'EX LTP VD %', stroke: '#00C49F', name: 'EX LTP VD %' }]} meta={{ value: 1.44, stroke: '#FFCC00', label: 'Meta: 1.44%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 10]} />
             <KPIChart data={exltpdaChartData} title=" EX LTP DA % ⬇️" dataKeys={[{ dataKey: 'EX LPT DA %', stroke: '#CC0066', name: 'EX LTP DA %' }]} meta={{ value: 1.50, stroke: '#99FF00', label: 'Meta: 1.50%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 10]} />
             <KPIChart data={rrrVdChartData} title=" RRR VD % ⬇️" dataKeys={[{ dataKey: 'RRR VD %', stroke: '#8A2BE2', name: 'RRR VD %' }]} meta={[{ value: 2.8, stroke: '#FFCC00', label: 'Meta: 2.8%' }, { value: 1.5, stroke: '#008080', label: 'P4P: 1.5%' }]} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 15]} />
             <KPIChart data={rrrDaChartData} title=" RRR DA % ⬇️" dataKeys={[{ dataKey: 'RRR DA %', stroke: '#A52A2A', name: 'RRR DA %' }]} meta={[{ value: 5, stroke: '#FF4500', label: 'Meta: 5%' }, { value: 3, stroke: '#FFD700', label: 'P4P: 3%' }]} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 15]} />
             <KPIChart data={ecoRepairVdChartData} title=" ECO REPAIR VD % ⬆️" dataKeys={[{ dataKey: 'ECO REPAIR VD', stroke: '#4CAF50', name: 'ECO REPAIR VD' }]} meta={{ value: 60, stroke: '#FF5722', label: 'Meta: 90%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
             <KPIChart data={ftcHappyCallChartData} title=" FTC HAPPY CALL % ⬆️" dataKeys={[{ dataKey: 'FTC HAPPY CALL', stroke: '#9C27B0', name: 'FTC HAPPY CALL' }]} meta={{ value: 88, stroke: '#FFEB3B', label: 'Meta: 88%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
-            <KPIChart data={poInHomeD1ChartData} title=" PO IN HOME D+1 % ⬆️" dataKeys={[{ dataKey: 'PO IN HOME D+1', stroke: '#3F51B5', name: 'PO IN HOME D+1' }]} meta={{ value: 70, stroke: '#FFC107', label: 'Meta: 70%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
+            <KPIChart data={poInHomeD1ChartData} title=" PO IN HOME D+1 % ⬆️" dataKeys={[{ dataKey: 'PO IN HOME D+1', stroke: '#00C49F', name: 'PO IN HOME D+1' }]} meta={{ value: 70, stroke: '#FFC107', label: 'Meta: 70%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
             <KPIChart data={firstVisitVdChartData} title=" 1ST VISIT VD % ⬆️" dataKeys={[{ dataKey: '1ST VISIT VD', stroke: '#FFBB28', name: '1ST VISIT VD' }]} meta={{ value: 20, stroke: '#FF0000', label: 'Meta: 20%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
-            <KPIChart data={inHomeD1ChartData} title=" Perfect Agenda % ⬆️"  dataKeys={[{ dataKey: 'Perfect Agenda', stroke: '#00C49F', name: 'Perfect Agenda' }]} meta={{ value: 25, stroke: '#FF4081', label: 'Meta: 25%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 50]} />
+            <KPIChart data={inHomeD1ChartData} title=" Perfect Agenda % ⬆️"  dataKeys={[{ dataKey: 'Perfect Agenda', stroke: '#00C49F', name: 'Perfect Agenda' }]} meta={{ value: 25, stroke: '#FF4081', label: 'Meta: 25%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 50]} />
             <KPIChart data={rTatChartData} title=" R-TAT (Geral)" dataKeys={[{ dataKey: 'R-TAT', stroke: '#E91E63', name: 'R-TAT' }]} tooltipContent={<CustomTooltip />} />
             <KPIChart data={rTatVdCiChartData} title=" R-TAT VD CI" dataKeys={[{ dataKey: 'R-TAT VD CI', stroke: '#9C27B0', name: 'R-TAT VD CI' }]} tooltipContent={<CustomTooltip />} />
-            <KPIChart data={rTatVdIhChartData} title=" R-TAT VD IH" dataKeys={[{ dataKey: 'R-TAT VD IH', stroke: '#673AB7', name: 'R-TAT VD IH' }]} tooltipContent={<CustomTooltip />} />
-            <KPIChart data={rTatDaChartData} title=" R-TAT DA" dataKeys={[{ dataKey: 'R-TAT DA', stroke: '#3F51B5', name: 'R-TAT DA' }]} tooltipContent={<CustomTooltip />} />
-            <KPIChart data={rnpsVdChartData} title=" R-NPS VD % ⬆️" dataKeys={[{ dataKey: 'R-NPS VD', stroke: '#4682B4', name: 'R-NPS VD' }]} meta={{ value: 80, stroke: '#9ACD32', label: 'Meta: 80%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
+            <KPIChart data={rTatVdIhChartData} title=" R-TAT VD IH" dataKeys={[{ dataKey: 'R-TAT VD IH', stroke: '#00C49F', name: 'R-TAT VD IH' }]} tooltipContent={<CustomTooltip />} />
+            <KPIChart data={rTatDaChartData} title=" R-TAT DA" dataKeys={[{ dataKey: 'R-TAT DA', stroke: '#00C49F', name: 'R-TAT DA' }]} tooltipContent={<CustomTooltip />} />
+            <KPIChart data={rnpsVdChartData} title=" R-NPS VD % ⬆️" dataKeys={[{ dataKey: 'R-NPS VD', stroke: '#00C49F', name: 'R-NPS VD' }]} meta={{ value: 80, stroke: '#9ACD32', label: 'Meta: 80%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
             <KPIChart data={rnpsDaChartData} title=" R-NPS DA % ⬆️" dataKeys={[{ dataKey: 'R-NPS DA', stroke: '#FF4500', name: 'R-NPS DA' }]} meta={{ value: 78, stroke: '#ADFF2F', label: 'Meta: 78%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
           </div>
       </div>
