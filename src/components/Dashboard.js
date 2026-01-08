@@ -250,6 +250,12 @@ const METRIC_DEFINITIONS = {
     prefix: "",
     suffix: "%"
   },
+  totalApprovedBudget: {
+    title: "ORÇAMENTO APROVADO",
+    tooltip: "Soma de todos os valores do intervalo",
+    prefix: "R$ ",
+    suffix: ""
+  },
   avgApprovedRevenue: {
     title: "RECEITA MÉDIA POR OS",
     tooltip: "Somatória de aprovações / Quantidade de aprovações",
@@ -389,7 +395,7 @@ const CustomTooltip = ({ active, payload, label }) => {
             displayValue += ` (QTD: ${dataPoint['RRR VD QTD']})`;
           } else if (name.includes('RRR DA %') && dataPoint['RRR DA QTD'] !== undefined) {
             displayValue += ` (QTD: ${dataPoint['RRR DA QTD']})`;
-          } else if (name === 'Receita Média por Ordem' || name === 'Receita Média por OS') {
+          } else if (name === 'Receita Média por Ordem' || name === 'Receita Média por OS' || name === 'Orçamento Aprovado') {
             displayValue = `R$ ${value.toFixed(2)}`;
           } else if (name === 'Produtividade Ajustada') {
             displayValue = `${value.toFixed(1)}%`;
@@ -680,6 +686,9 @@ function Dashboard({ showPopup, setShowPopup }) {
             case 'avgApprovedRevenue':
                 summaryValue = accumTotalApprovedCount > 0 ? accumTotalRevenue / accumTotalApprovedCount : 0;
                 break;
+            case 'totalApprovedBudget':
+                summaryValue = accumTotalRevenue;
+                break;
             default:
                 summaryValue = accumTotalRevenue;
         }
@@ -742,7 +751,7 @@ function Dashboard({ showPopup, setShowPopup }) {
   if (error) return <div className="error-message">{error}</div>;
 
   const detailedListDisplay = filteredResults ? (
-    (filterMetric === 'avgApprovedRevenue' || filterMetric === 'adjustedProductivity') 
+    (filterMetric === 'avgApprovedRevenue' || filterMetric === 'adjustedProductivity' || filterMetric === 'totalApprovedBudget') 
         ? filteredResults.detailedList.filter(item => item.value > 0)
         : filteredResults.detailedList
   ) : [];
@@ -804,6 +813,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                 <select className="filter-input" value={filterMetric} onChange={(e) => setFilterMetric(e.target.value)}>
                     <option value="productivity">Produtividade</option>
                     <option value="adjustedProductivity">Produtividade Ajustada</option>
+                    <option value="totalApprovedBudget">Orçamento Aprovado</option>
                     <option value="avgApprovedRevenue">Média Orçamento Aprovado</option>
                     <option value="revenuePerOrder">Receita Média por Ordem</option>
                 </select>
@@ -847,7 +857,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                             }} />
                             <YAxis yAxisId="left" stroke="#8884d8" />
                             <Tooltip contentStyle={{ backgroundColor: '#333', borderColor: '#555' }} labelStyle={{ color: '#fff' }} formatter={(value, name) => {
-                                if(name === 'Receita Média por Ordem' || name === 'Receita Média por OS') return `R$ ${parseFloat(value).toFixed(2)}`;
+                                if(name === 'Receita Média por Ordem' || name === 'Receita Média por OS' || name === 'Orçamento Aprovado') return `R$ ${parseFloat(value).toFixed(2)}`;
                                 if(name === 'Produtividade Ajustada') return `${parseFloat(value).toFixed(1)}%`;
                                 return parseFloat(value).toFixed(2);
                             }} />
@@ -856,6 +866,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                             {filterMetric === 'productivity' && <Bar yAxisId="left" dataKey="osCount" name="Produtividade" barSize={20} fill="#00C49F" />}
                             {filterMetric === 'adjustedProductivity' && <Line yAxisId="left" type="monotone" dataKey="adjustedProductivity" name="Produtividade Ajustada" stroke="#FF8042" strokeWidth={3} />}
                             {filterMetric === 'avgApprovedRevenue' && <Line yAxisId="left" type="monotone" dataKey="avgApprovedRevenue" name="Receita Média por OS" stroke="#00C49F" strokeWidth={3} />}
+                            {filterMetric === 'totalApprovedBudget' && <Line yAxisId="left" type="monotone" dataKey="revenue" name="Orçamento Aprovado" stroke="#00C49F" strokeWidth={3} activeDot={{ r: 8 }} />}
                         </ComposedChart>
                     </ResponsiveContainer>
                 </div>
@@ -867,6 +878,8 @@ function Dashboard({ showPopup, setShowPopup }) {
                       <thead>
                         <tr style={{ background: '#444', color: '#fff' }}>
                           <th style={{ padding: '8px', textAlign: 'center' }}>#</th>
+                          {/* --- NOVA COLUNA SO --- */}
+                          <th style={{ padding: '8px', textAlign: 'center' }}>SO</th>
                           <th style={{ padding: '8px', textAlign: 'center' }}>Hora/Data</th>
                           <th style={{ padding: '8px', textAlign: 'center' }}>Técnico</th>
                           <th style={{ padding: '8px', textAlign: 'center' }}>Cliente</th>
@@ -878,6 +891,8 @@ function Dashboard({ showPopup, setShowPopup }) {
                         {detailedListDisplay.map((item, idx) => (
                           <tr key={idx} style={{ background: idx % 2 === 0 ? '#2a2a2a' : '#333', borderBottom: '1px solid #444' }}>
                             <td style={{ padding: '8px', textAlign: 'center', color: '#888' }}>{idx + 1}</td>
+                            {/* --- VALOR DA NOVA COLUNA SO --- */}
+                            <td style={{ padding: '8px', textAlign: 'center' }}>{item.id}</td>
                             <td style={{ padding: '8px', textAlign: 'center' }}>{item.timestampStr}</td>
                             <td style={{ padding: '8px', textAlign: 'center' }}>{item.tech}</td>
                             <td style={{ padding: '8px', textAlign: 'center' }}>{item.client}</td>
