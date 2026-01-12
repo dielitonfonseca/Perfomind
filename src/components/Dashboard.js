@@ -970,7 +970,7 @@ function Dashboard({ showPopup, setShowPopup }) {
             <KPIChart data={rTatChartData} title=" R-TAT (Geral) ⬇️" dataKeys={[{ dataKey: 'R-TAT', stroke: '#E91E63', name: 'R-TAT' }]} tooltipContent={<CustomTooltip />} />
             <KPIChart data={rTatVdCiChartData} title=" R-TAT VD CI ⬇️" dataKeys={[{ dataKey: 'R-TAT VD CI', stroke: '#9C27B0', name: 'R-TAT VD CI' }]} tooltipContent={<CustomTooltip />} />
             <KPIChart data={rTatVdIhChartData} title=" R-TAT VD IH ⬇️" dataKeys={[{ dataKey: 'R-TAT VD IH', stroke: '#00C49F', name: 'R-TAT VD IH' }]} tooltipContent={<CustomTooltip />} />
-            <KPIChart data={rTatDaChartData} title=" R-TAT DA" dataKeys={[{ dataKey: 'R-TAT DA', stroke: '#00C49F', name: 'R-TAT DA' }]} tooltipContent={<CustomTooltip />} />
+            <KPIChart data={rTatDaChartData} title=" R-TAT DA ⬇️" dataKeys={[{ dataKey: 'R-TAT DA', stroke: '#00C49F', name: 'R-TAT DA' }]} tooltipContent={<CustomTooltip />} />
             <KPIChart data={rnpsVdChartData} title=" R-NPS VD % ⬆️" dataKeys={[{ dataKey: 'R-NPS VD', stroke: '#00C49F', name: 'R-NPS VD' }]} meta={{ value: 80, stroke: '#9ACD32', label: 'Meta: 80%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
             <KPIChart data={rnpsDaChartData} title=" R-NPS DA % ⬆️" dataKeys={[{ dataKey: 'R-NPS DA', stroke: '#FF4500', name: 'R-NPS DA' }]} meta={{ value: 78, stroke: '#ADFF2F', label: 'Meta: 78%' }} tooltipContent={<CustomTooltip />} yAxisDomain={[0, 100]} />
           </div>
