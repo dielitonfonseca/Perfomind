@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, onSnapshot, query, orderBy, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label, Cell, ComposedChart } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine, Label, Cell, ComposedChart, ReferenceArea } from 'recharts';
 
 // --- ESTILOS CSS GLOBAIS ---
 const globalStyles = `
@@ -568,6 +568,7 @@ function Dashboard({ showPopup, setShowPopup }) {
     let startStr = filterStartDate;
     let endStr = filterEndDate;
 
+    // 1. Definição do intervalo SELECIONADO pelo usuário
     if (filterType === 'week') {
         if (!selectedWeek) return;
         const range = getDateRangeOfWeek(selectedWeek);
@@ -581,10 +582,20 @@ function Dashboard({ showPopup, setShowPopup }) {
 
     setIsFiltering(true);
 
-    const start = new Date(startStr);
-    const end = new Date(endStr);
+    // 2. Cálculo do intervalo EXPANDIDO (Buffer para contexto no gráfico)
+    const contextDays = 4; // Dias a mais antes e depois para mostrar contexto
+    const selectedStart = new Date(startStr);
+    const selectedEnd = new Date(endStr);
+    
+    const expandedStart = new Date(selectedStart);
+    expandedStart.setDate(expandedStart.getDate() - contextDays);
+    
+    const expandedEnd = new Date(selectedEnd);
+    expandedEnd.setDate(expandedEnd.getDate() + contextDays);
+
     const dates = [];
-    for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+    // Gera datas para o intervalo EXPANDIDO
+    for (let dt = new Date(expandedStart); dt <= expandedEnd; dt.setDate(dt.getDate() + 1)) {
         dates.push(dt.toISOString().split('T')[0]);
     }
 
@@ -592,12 +603,10 @@ function Dashboard({ showPopup, setShowPopup }) {
         ? technicianRanking.map(t => t.name) 
         : [filterTech];
 
-    let accumTotalOS = 0;
-    let accumTotalRevenue = 0;
-    let accumTotalApprovedCount = 0;
     const dailyData = {}; 
-    const detailedList = [];
+    const detailedList = []; // Conterá todos os itens do intervalo expandido inicialmente
 
+    // Inicializa dailyData para todas as datas do intervalo expandido
     dates.forEach(date => {
         dailyData[date] = { date, osCount: 0, revenue: 0, budgetCount: 0 };
     });
@@ -641,9 +650,6 @@ function Dashboard({ showPopup, setShowPopup }) {
                             dailyData[date].revenue += osValue;
                             if (hasBudget) dailyData[date].budgetCount += 1;
                         }
-                        accumTotalOS += 1;
-                        accumTotalRevenue += osValue;
-                        if (hasBudget) accumTotalApprovedCount += 1;
                         
                         const typeCapitalized = data.tipoOS ? data.tipoOS.charAt(0).toUpperCase() + data.tipoOS.slice(1) : 'N/A';
                         detailedList.push({
@@ -662,6 +668,9 @@ function Dashboard({ showPopup, setShowPopup }) {
             } catch (err) { console.warn(`Erro técnico ${tech}:`, err); }
         }
 
+        // 3. Processamento para Exibição
+        
+        // Dados do gráfico (Intervalo Expandido)
         const chartData = Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
         
         chartData.forEach(d => {
@@ -670,34 +679,53 @@ function Dashboard({ showPopup, setShowPopup }) {
             d.avgApprovedRevenue = d.budgetCount > 0 ? d.revenue / d.budgetCount : 0;
         });
 
+        // 4. Filtrar e Ordenar Lista Detalhada (Apenas Intervalo Selecionado)
+        // Filtra apenas o que o usuário pediu (sem o buffer de contexto)
+        const selectedItems = detailedList.filter(item => item.date >= startStr && item.date <= endStr);
+        
+        // Ordena Decrescente por Data/Hora (Mais recentes primeiro)
+        selectedItems.sort((a, b) => {
+            const dateA = a.timestampStr ? new Date(a.timestampStr).getTime() : new Date(a.date).getTime();
+            const dateB = b.timestampStr ? new Date(b.timestampStr).getTime() : new Date(b.date).getTime();
+            return dateB - dateA;
+        });
+
+        // 5. Recalcular Sumários (Apenas Intervalo Selecionado)
+        // Os cards de resumo devem refletir apenas a seleção, não o contexto extra
+        const totalOS = selectedItems.length;
+        const totalRevenue = selectedItems.reduce((acc, curr) => acc + curr.value, 0);
+        const approvedCount = selectedItems.filter(i => i.value > 0).length;
+        const daysCount = (selectedEnd - selectedStart) / (1000 * 60 * 60 * 24) + 1; // Dias no intervalo selecionado
+
         let summaryValue = 0;
-        const daysCount = dates.length;
 
         switch(filterMetric) {
             case 'revenuePerOrder':
-                summaryValue = accumTotalOS > 0 ? accumTotalRevenue / accumTotalOS : 0;
+                summaryValue = totalOS > 0 ? totalRevenue / totalOS : 0;
                 break;
             case 'productivity':
-                summaryValue = daysCount > 0 ? accumTotalOS / daysCount : 0;
+                // Se o filtro é data especifica, média diária real. Se for semana, divide por 6 ou 7? Usamos dias reais selecionados.
+                summaryValue = daysCount > 0 ? totalOS / daysCount : 0;
                 break;
             case 'adjustedProductivity':
-                summaryValue = accumTotalOS > 0 ? (accumTotalApprovedCount / accumTotalOS) * 100 : 0;
+                summaryValue = totalOS > 0 ? (approvedCount / totalOS) * 100 : 0;
                 break;
             case 'avgApprovedRevenue':
-                summaryValue = accumTotalApprovedCount > 0 ? accumTotalRevenue / accumTotalApprovedCount : 0;
+                summaryValue = approvedCount > 0 ? totalRevenue / approvedCount : 0;
                 break;
             case 'totalApprovedBudget':
-                summaryValue = accumTotalRevenue;
+                summaryValue = totalRevenue;
                 break;
             default:
-                summaryValue = accumTotalRevenue;
+                summaryValue = totalRevenue;
         }
 
         const resultsObj = {
-            totalOS: accumTotalOS,
+            totalOS: totalOS,
             summaryValue: summaryValue,
-            chartData,
-            detailedList
+            chartData, // Dados expandidos
+            detailedList: selectedItems, // Dados filtrados e ordenados
+            selectedRange: { start: startStr, end: endStr } // Intervalo para highlight
         };
 
         setFilteredResults(resultsObj);
@@ -852,8 +880,13 @@ function Dashboard({ showPopup, setShowPopup }) {
                         <ComposedChart data={filteredResults.chartData}>
                             <CartesianGrid stroke="#444" strokeDasharray="3 3" />
                             <XAxis dataKey="date" stroke="#ccc" tickFormatter={(str) => {
-                                const d = new Date(str);
-                                return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}`;
+                                // CORREÇÃO: Parse manual da string YYYY-MM-DD para evitar problemas de timezone (UTC vs Local)
+                                // new Date("2026-01-08") cria 08/01 UTC, que vira 07/01 no Brasil (-3h).
+                                // Ao quebrar a string, garantimos que o dia exibido é o dia da string.
+                                if (!str) return '';
+                                const parts = str.split('-'); 
+                                if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
+                                return str;
                             }} />
                             <YAxis yAxisId="left" stroke="#8884d8" />
                             <Tooltip contentStyle={{ backgroundColor: '#333', borderColor: '#555' }} labelStyle={{ color: '#fff' }} formatter={(value, name) => {
@@ -862,6 +895,17 @@ function Dashboard({ showPopup, setShowPopup }) {
                                 return parseFloat(value).toFixed(2);
                             }} />
                             <Legend />
+                            {/* Área de Destaque para o Intervalo Selecionado */}
+                            {filteredResults.selectedRange && (
+                                <ReferenceArea 
+                                    yAxisId="left"
+                                    x1={filteredResults.selectedRange.start} 
+                                    x2={filteredResults.selectedRange.end} 
+                                    fill="#00C49F" 
+                                    fillOpacity={0.15} 
+                                />
+                            )}
+
                             {filterMetric === 'revenuePerOrder' && <Line yAxisId="left" type="monotone" dataKey="revenuePerOrder" name="Receita Média por Ordem" stroke="#00C49F" strokeWidth={3} />}
                             {filterMetric === 'productivity' && <Bar yAxisId="left" dataKey="osCount" name="Produtividade" barSize={20} fill="#00C49F" />}
                             {filterMetric === 'adjustedProductivity' && <Line yAxisId="left" type="monotone" dataKey="adjustedProductivity" name="Produtividade Ajustada" stroke="#FF8042" strokeWidth={3} />}
@@ -873,7 +917,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                 
                 {detailedListDisplay.length > 0 && (
                   <div className="custom-scrollbar" style={{ marginTop: '30px', maxHeight: '300px', overflowY: 'auto' }}>
-                    <h4 style={{ textAlign: 'center', color: '#ccc' }}>Detalhamento ({detailedListDisplay.length} registros)</h4>
+                    <h4 style={{ textAlign: 'center', color: '#ccc' }}>Detalhamento ({detailedListDisplay.length} registros no intervalo selecionado)</h4>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9em' }}>
                       <thead>
                         <tr style={{ background: '#444', color: '#fff' }}>
