@@ -3,7 +3,7 @@ import { db } from '../firebaseConfig';
 import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
-import { ScanLine } from 'lucide-react';
+import { ScanLine, MapPin, AlertCircle, CheckCircle } from 'lucide-react';
 import ScannerDialog from './ScannerDialog';
 import SignatureDialog from './SignatureDialog';
 
@@ -37,6 +37,50 @@ function Form({ setFormData }) {
     const [orcamentoValor, setOrcamentoValor] = useState('');
     const [limpezaAprovada, setLimpezaAprovada] = useState(false);
 
+    // Estado para localização e status
+    const [userLocation, setUserLocation] = useState(null);
+    const [locationStatus, setLocationStatus] = useState('idle'); // idle, loading, success, error
+
+    // Função para solicitar localização manualmente
+    const requestLocation = () => {
+        if (!("geolocation" in navigator)) {
+            alert("Seu navegador não suporta geolocalização.");
+            setLocationStatus('error');
+            return;
+        }
+
+        setLocationStatus('loading');
+        
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setUserLocation({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
+                    timestamp: new Date().toISOString()
+                });
+                setLocationStatus('success');
+                console.log("Localização obtida:", position.coords);
+            },
+            (error) => {
+                console.error("Erro ao obter localização:", error);
+                let msg = "Erro desconhecido ao pegar localização.";
+                if (error.code === 1) msg = "Permissão de localização negada. Por favor, permita o acesso no navegador.";
+                else if (error.code === 2) msg = "Localização indisponível. Verifique seu GPS/Conexão.";
+                else if (error.code === 3) msg = "Tempo limite esgotado ao buscar localização.";
+                
+                alert(msg);
+                setLocationStatus('error');
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    };
+
+    // Tenta pegar localização ao montar
+    useEffect(() => {
+        requestLocation();
+        // eslint-disable-next-line
+    }, []);
 
     useEffect(() => {
         const tecnicoSalvo = localStorage.getItem('tecnico');
@@ -144,6 +188,12 @@ ${obsText}
     const handleSubmit = async (event) => {
         event.preventDefault();
 
+        // --- VALIDAÇÃO DE LOCALIZAÇÃO (BLOQUEANTE) ---
+        if (!userLocation) {
+            alert("ATENÇÃO: A localização não foi capturada. Garanta que a localização está ativada e tente novamente.");
+            return; // Impede o envio
+        }
+
         const tipoOS = isSamsung ? 'samsung' : 'assurant';
         const tecnicoFinal = (tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect).trim();
         const numeroOS = numero.trim();
@@ -246,6 +296,9 @@ ${obsText}
                 isLimpeza: limpezaAprovada,
                 dataHoraCriacao: dataHoraFormatada, // Campo string legível
                 
+                // LOCALIZAÇÃO OBRIGATÓRIA
+                localizacao: userLocation,
+
                 dataGeracao: serverTimestamp(),
                 dataGeracaoLocal: new Date().toISOString()
             });
@@ -578,6 +631,35 @@ ${obsText}
                     value={tecnicoManual}
                     onChange={(e) => setTecnicoManual(e.target.value)}
                 />
+                
+                {/* --- BOTÃO DE LOCALIZAÇÃO ADICIONADO --- */}
+                <div className="location-control" style={{ marginBottom: '15px' }}>
+                    <label>Localização:</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <button 
+                            type="button" 
+                            onClick={requestLocation}
+                            disabled={locationStatus === 'loading' || locationStatus === 'success'}
+                            style={{ 
+                                background: locationStatus === 'success' ? '#4CAF50' : (locationStatus === 'error' ? '#FF5722' : '#2196F3'),
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '8px 15px',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: locationStatus === 'success' ? 'default' : 'pointer'
+                            }}
+                        >
+                            {locationStatus === 'loading' && 'Buscando...'}
+                            {locationStatus === 'success' && <><CheckCircle size={16}/> Localização Obtida</>}
+                            {locationStatus === 'error' && <><AlertCircle size={16}/> Tentar Novamente</>}
+                            {locationStatus === 'idle' && <><MapPin size={16}/> Obter Localização 📍</>}
+                        </button>
+                    </div>
+                    {locationStatus === 'error' && <small style={{color: '#FF5722'}}>Habilite a localização no navegador ou verifique sua conexão.</small>}
+                </div>
 
                 {isSamsung && (
                     <>

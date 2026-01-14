@@ -424,7 +424,8 @@ function Dashboard({ showPopup, setShowPopup }) {
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   
-  const [filterType, setFilterType] = useState('week'); 
+  // INICIO COM 'today' (HOJE) POR PADRÃO
+  const [filterType, setFilterType] = useState('today'); 
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [selectedWeek, setSelectedWeek] = useState('');
@@ -437,13 +438,17 @@ function Dashboard({ showPopup, setShowPopup }) {
   const [isFiltering, setIsFiltering] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
+  // ESTADOS PARA EASTER EGG (OCULTAR COLUNAS)
+  const [showHiddenColumns, setShowHiddenColumns] = useState(false);
+  const [clickBuffer, setClickBuffer] = useState([]); // Buffer para cliques temporizados
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // --- 1. CARREGAR CACHE (MAS FORÇAR TÉCNICO = TODOS) ---
+  // --- 1. CARREGAR CACHE (MODIFICADO: NÃO CARREGA 'filterType' para manter 'today') ---
   useEffect(() => {
     const loadCachedState = async () => {
         try {
@@ -452,14 +457,14 @@ function Dashboard({ showPopup, setShowPopup }) {
 
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                setFilterType(data.filters.filterType || 'week');
+                
+                // CORREÇÃO: Não sobrescrever o filterType 'today' padrão com o cache 'week' antigo.
+                // setFilterType(data.filters.filterType || 'today'); // REMOVIDO
+                
                 setFilterStartDate(data.filters.filterStartDate || '');
                 setFilterEndDate(data.filters.filterEndDate || '');
                 setSelectedWeek(data.filters.selectedWeek || '');
-                
-                // CORREÇÃO: Força 'Todos' independente do que estava no cache
-                setFilterTech('Todos');
-                
+                setFilterTech('Todos'); // Força Todos
                 setFilterMetric(data.filters.filterMetric || 'productivity');
                 
                 if (data.results) {
@@ -524,14 +529,19 @@ function Dashboard({ showPopup, setShowPopup }) {
     return () => unsubscribes.forEach(unsubscribe => unsubscribe());
   }, []); 
 
-  // --- 3. REFRESH AUTOMÁTICO ---
+  // --- 3. REFRESH AUTOMÁTICO (CORRIGIDO PARA EVITAR LOOP) ---
   useEffect(() => {
-      if (technicianRanking.length > 0 && selectedWeek !== '' && kpiData.length > 0) {
+      if (technicianRanking.length > 0 && kpiData.length > 0) {
+          // Se o filtro for semana e não tiver selecionada, não faz
+          if (filterType === 'week' && selectedWeek === '') return;
+          
+          // Se o filtro for 'today', roda o handleFilter sem depender do selectedWeek
           handleFilter();
           setInitialLoadDone(true);
       }
-      // eslint-disable-next-line
-  }, [technicianRanking, selectedWeek, kpiData, filterMetric]);
+      // eslint-disable-next-line 
+      // Removemos 'selectedWeek' das dependências se filterType for 'today' para evitar reload desnecessário
+  }, [technicianRanking, kpiData, filterMetric, filterType, selectedWeek]);
 
   const getCurrentWeekNumber = () => {
     const d = new Date();
@@ -574,6 +584,15 @@ function Dashboard({ showPopup, setShowPopup }) {
         const range = getDateRangeOfWeek(selectedWeek);
         startStr = range.start;
         endStr = range.end;
+    } else if (filterType === 'today') {
+        // Lógica para HOJE - Ajuste fuso horário para garantir que 'hoje' é realmente hoje local
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+        startStr = todayStr;
+        endStr = todayStr;
     } else {
         if (!filterStartDate || !filterEndDate) {
             return;
@@ -584,8 +603,9 @@ function Dashboard({ showPopup, setShowPopup }) {
 
     // 2. Cálculo do intervalo EXPANDIDO (Buffer para contexto no gráfico)
     const contextDays = 4; // Dias a mais antes e depois para mostrar contexto
-    const selectedStart = new Date(startStr);
-    const selectedEnd = new Date(endStr);
+    // IMPORTANTE: Criar data com "T00:00:00" para evitar problemas de fuso ao converter string->Date
+    const selectedStart = new Date(startStr + "T00:00:00");
+    const selectedEnd = new Date(endStr + "T00:00:00");
     
     const expandedStart = new Date(selectedStart);
     expandedStart.setDate(expandedStart.getDate() - contextDays);
@@ -604,9 +624,8 @@ function Dashboard({ showPopup, setShowPopup }) {
         : [filterTech];
 
     const dailyData = {}; 
-    const detailedList = []; // Conterá todos os itens do intervalo expandido inicialmente
+    const detailedList = []; 
 
-    // Inicializa dailyData para todas as datas do intervalo expandido
     dates.forEach(date => {
         dailyData[date] = { date, osCount: 0, revenue: 0, budgetCount: 0 };
     });
@@ -659,7 +678,9 @@ function Dashboard({ showPopup, setShowPopup }) {
                             client: data.cliente,
                             type: typeCapitalized, 
                             value: osValue,
-                            timestampStr: data.dataHoraCriacao 
+                            timestampStr: data.dataHoraCriacao,
+                            // NOVO: Adiciona a localização recuperada do Firebase
+                            location: data.localizacao || null 
                         });
                     };
                     samsungSnap.forEach(processDoc);
@@ -669,8 +690,6 @@ function Dashboard({ showPopup, setShowPopup }) {
         }
 
         // 3. Processamento para Exibição
-        
-        // Dados do gráfico (Intervalo Expandido)
         const chartData = Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
         
         chartData.forEach(d => {
@@ -679,23 +698,23 @@ function Dashboard({ showPopup, setShowPopup }) {
             d.avgApprovedRevenue = d.budgetCount > 0 ? d.revenue / d.budgetCount : 0;
         });
 
-        // 4. Filtrar e Ordenar Lista Detalhada (Apenas Intervalo Selecionado)
-        // Filtra apenas o que o usuário pediu (sem o buffer de contexto)
         const selectedItems = detailedList.filter(item => item.date >= startStr && item.date <= endStr);
         
-        // Ordena Decrescente por Data/Hora (Mais recentes primeiro)
         selectedItems.sort((a, b) => {
             const dateA = a.timestampStr ? new Date(a.timestampStr).getTime() : new Date(a.date).getTime();
             const dateB = b.timestampStr ? new Date(b.timestampStr).getTime() : new Date(b.date).getTime();
             return dateB - dateA;
         });
 
-        // 5. Recalcular Sumários (Apenas Intervalo Selecionado)
-        // Os cards de resumo devem refletir apenas a seleção, não o contexto extra
         const totalOS = selectedItems.length;
         const totalRevenue = selectedItems.reduce((acc, curr) => acc + curr.value, 0);
         const approvedCount = selectedItems.filter(i => i.value > 0).length;
-        const daysCount = (selectedEnd - selectedStart) / (1000 * 60 * 60 * 24) + 1; // Dias no intervalo selecionado
+        
+        // Correção de dias no intervalo para Produtividade
+        let daysCount = 1; 
+        if(filterType !== 'today') {
+            daysCount = (selectedEnd - selectedStart) / (1000 * 60 * 60 * 24) + 1;
+        }
 
         let summaryValue = 0;
 
@@ -704,7 +723,6 @@ function Dashboard({ showPopup, setShowPopup }) {
                 summaryValue = totalOS > 0 ? totalRevenue / totalOS : 0;
                 break;
             case 'productivity':
-                // Se o filtro é data especifica, média diária real. Se for semana, divide por 6 ou 7? Usamos dias reais selecionados.
                 summaryValue = daysCount > 0 ? totalOS / daysCount : 0;
                 break;
             case 'adjustedProductivity':
@@ -723,13 +741,14 @@ function Dashboard({ showPopup, setShowPopup }) {
         const resultsObj = {
             totalOS: totalOS,
             summaryValue: summaryValue,
-            chartData, // Dados expandidos
-            detailedList: selectedItems, // Dados filtrados e ordenados
-            selectedRange: { start: startStr, end: endStr } // Intervalo para highlight
+            chartData, 
+            detailedList: selectedItems, 
+            selectedRange: { start: startStr, end: endStr } 
         };
 
         setFilteredResults(resultsObj);
 
+        // Atualiza cache, mas NÃO SALVA filterType como "today" para não bugar a lógica do cache se mudar.
         try {
             await setDoc(doc(db, 'dashboard_cache', 'last_state'), {
                 updatedAt: new Date().toISOString(),
@@ -756,7 +775,6 @@ function Dashboard({ showPopup, setShowPopup }) {
 
   const chartData = kpiData.slice(-10);
   
-  // -- APLICAÇÃO DA COR #00C49F ONDE ERA AZUL --
   const ltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [chartData]);
   const ltpdaChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP DA %': parseFloat(d['LTP DA %']), 'LTP DA QTD': parseFloat(d['LTP DA QTD']) })), [chartData]);
   const exltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'EX LTP VD %': parseFloat(d['EX LTP VD %']), 'EX LTP VD QTD': parseFloat(d['EX LTP VD QTD']) })), [chartData]);
@@ -786,6 +804,25 @@ function Dashboard({ showPopup, setShowPopup }) {
 
   const currentMetricInfo = METRIC_DEFINITIONS[filterMetric];
 
+  // --- LÓGICA DE CLIQUE TRIPLO REFINADA ---
+  const handleTitleClick = () => {
+    const now = Date.now();
+    // Filtra cliques que aconteceram há menos de 500ms
+    const recentClicks = clickBuffer.filter(time => now - time < 500);
+    
+    // Adiciona o clique atual
+    const newBuffer = [...recentClicks, now];
+    setClickBuffer(newBuffer);
+    
+    console.log("Cliques detectados:", newBuffer.length); // DEBUG
+
+    if (newBuffer.length >= 3) {
+        setShowHiddenColumns(prev => !prev);
+        setClickBuffer([]); // Reseta após ativar
+        console.log("Easter Egg Ativado/Desativado!");
+    }
+  };
+
   return (
     // ADICIONADA CLASS 'dashboard-container' PARA CORRIGIR OVERFLOW
     <div className="output dashboard-container">
@@ -793,13 +830,17 @@ function Dashboard({ showPopup, setShowPopup }) {
         <PerformancePopup isOpen={showPopup} onClose={() => setShowPopup(false)} kpiData={kpiData} />
       
       <div className="dashboard-section" style={{ marginTop: '20px', padding: '20px', background: '#222', borderRadius: '8px' }}>
-        <h3>Relatórios Detalhados 📊</h3>
+        <h3 onClick={handleTitleClick} style={{ cursor: 'pointer', userSelect: 'none' }}>
+            Relatórios Detalhados 📊 
+            {/* Opcional: mostrar um indicador visual sutil se estiver ativado, ou deixar totalmente invisível */}
+        </h3>
         
         {/* --- CONTAINER DE FILTROS COM CSS RESPONSIVO (CLASSES) --- */}
         <div className="filter-container">
              <div className="filter-group">
                 <label className="filter-label">Intervalo:</label>
                 <select className="filter-input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                    <option value="today">Hoje</option>
                     <option value="week">Semanal</option>
                     <option value="date">Por data</option>
                 </select>
@@ -816,7 +857,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                         <input className="filter-input" type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
                     </div>
                 </>
-            ) : (
+            ) : filterType === 'week' ? (
                 <div className="filter-group">
                     <label className="filter-label">Semana:</label>
                     <select className="filter-input" value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)}>
@@ -826,7 +867,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                         <option value="current">Semana Atual</option>
                     </select>
                 </div>
-            )}
+            ) : null }
 
             <div className="filter-group">
                 <label className="filter-label">Técnico:</label>
@@ -880,9 +921,7 @@ function Dashboard({ showPopup, setShowPopup }) {
                         <ComposedChart data={filteredResults.chartData}>
                             <CartesianGrid stroke="#444" strokeDasharray="3 3" />
                             <XAxis dataKey="date" stroke="#ccc" tickFormatter={(str) => {
-                                // CORREÇÃO: Parse manual da string YYYY-MM-DD para evitar problemas de timezone (UTC vs Local)
-                                // new Date("2026-01-08") cria 08/01 UTC, que vira 07/01 no Brasil (-3h).
-                                // Ao quebrar a string, garantimos que o dia exibido é o dia da string.
+                                // CORREÇÃO: Parse manual da string YYYY-MM-DD
                                 if (!str) return '';
                                 const parts = str.split('-'); 
                                 if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
@@ -916,15 +955,26 @@ function Dashboard({ showPopup, setShowPopup }) {
                 </div>
                 
                 {detailedListDisplay.length > 0 && (
-                  <div className="custom-scrollbar" style={{ marginTop: '30px', maxHeight: '300px', overflowY: 'auto' }}>
+                  <div className="custom-scrollbar" style={{ marginTop: '30px', maxHeight: '300px', overflowY: 'auto', overflowX: 'auto' }}>
                     <h4 style={{ textAlign: 'center', color: '#ccc' }}>Detalhamento ({detailedListDisplay.length} registros no intervalo selecionado)</h4>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9em' }}>
                       <thead>
                         <tr style={{ background: '#444', color: '#fff' }}>
                           <th style={{ padding: '8px', textAlign: 'center' }}>#</th>
-                          {/* --- NOVA COLUNA SO --- */}
+                          {/* --- COLUNA SO --- */}
                           <th style={{ padding: '8px', textAlign: 'center' }}>SO</th>
-                          <th style={{ padding: '8px', textAlign: 'center' }}>Hora/Data</th>
+                          
+                          {/* --- COLUNAS OCULTAS POR PADRÃO (EASTER EGG) - ORDEM ALTERADA --- */}
+                          {showHiddenColumns && (
+                            <>
+                                <th style={{ padding: '8px', textAlign: 'center' }}>Hora/Data</th>
+                                {/* LOCALIZAÇÃO A DIREITA DE DATA/HORA */}
+                                <th style={{ padding: '8px', textAlign: 'center' }}>Localização</th>
+                                {/* PRECISÃO AO LADO DE LOCALIZAÇÃO */}
+                                <th style={{ padding: '8px', textAlign: 'center' }}>Precisão</th>
+                            </>
+                          )}
+
                           <th style={{ padding: '8px', textAlign: 'center' }}>Técnico</th>
                           <th style={{ padding: '8px', textAlign: 'center' }}>Cliente</th>
                           <th style={{ padding: '8px', textAlign: 'center' }}>Tipo</th>
@@ -935,9 +985,38 @@ function Dashboard({ showPopup, setShowPopup }) {
                         {detailedListDisplay.map((item, idx) => (
                           <tr key={idx} style={{ background: idx % 2 === 0 ? '#2a2a2a' : '#333', borderBottom: '1px solid #444' }}>
                             <td style={{ padding: '8px', textAlign: 'center', color: '#888' }}>{idx + 1}</td>
-                            {/* --- VALOR DA NOVA COLUNA SO --- */}
                             <td style={{ padding: '8px', textAlign: 'center' }}>{item.id}</td>
-                            <td style={{ padding: '8px', textAlign: 'center' }}>{item.timestampStr}</td>
+                            
+                            {/* --- EXIBIÇÃO CONDICIONAL DAS COLUNAS OCULTAS --- */}
+                            {showHiddenColumns && (
+                                <>
+                                    <td style={{ padding: '8px', textAlign: 'center' }}>{item.timestampStr}</td>
+                                    
+                                    {/* LOCALIZAÇÃO COM LINK PARA GOOGLE MAPS */}
+                                    <td style={{ padding: '8px', textAlign: 'center', fontSize: '0.8em', color: '#aaa' }}>
+                                        {item.location ? (
+                                            <a 
+                                                href={`https://www.google.com/maps?q=${item.location.latitude},${item.location.longitude}`} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                style={{ color: '#00C49F', textDecoration: 'underline', cursor: 'pointer' }}
+                                                title="Abrir no Google Maps"
+                                            >
+                                                {item.location.latitude.toFixed(5)}, {item.location.longitude.toFixed(5)}
+                                            </a>
+                                        ) : 'N/A'}
+                                    </td>
+
+                                    {/* COLUNA DE PRECISÃO (EM METROS) */}
+                                    <td style={{ padding: '8px', textAlign: 'center', fontSize: '0.8em', color: '#aaa' }}>
+                                        {item.location && item.location.accuracy 
+                                            ? `${Math.round(item.location.accuracy)} m` 
+                                            : '-'
+                                        }
+                                    </td>
+                                </>
+                            )}
+
                             <td style={{ padding: '8px', textAlign: 'center' }}>{item.tech}</td>
                             <td style={{ padding: '8px', textAlign: 'center' }}>{item.client}</td>
                             <td style={{ padding: '8px', textAlign: 'center' }}>{item.type}</td>
