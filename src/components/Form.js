@@ -3,12 +3,12 @@ import { db } from '../firebaseConfig';
 import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
-import { ScanLine, MapPin, AlertCircle, CheckCircle } from 'lucide-react';
+import { ScanLine, MapPin, AlertCircle, CheckCircle, WifiOff, RefreshCw } from 'lucide-react';
 import ScannerDialog from './ScannerDialog';
 import SignatureDialog from './SignatureDialog';
 
 function Form({ setFormData }) {
-    // Estados existentes
+    // --- ESTADOS ---
     const [numero, setNumero] = useState('');
     const [cliente, setCliente] = useState('');
     const [tecnicoSelect, setTecnicoSelect] = useState('');
@@ -41,7 +41,131 @@ function Form({ setFormData }) {
     const [userLocation, setUserLocation] = useState(null);
     const [locationStatus, setLocationStatus] = useState('idle'); // idle, loading, success, error
 
-    // Função para solicitar localização manualmente
+    // --- NOVA LÓGICA: SINCRONIZAÇÃO OFFLINE ---
+
+    // Função que processa a fila de itens salvos offline
+    const syncOfflineData = async () => {
+        const offlineQueue = JSON.parse(localStorage.getItem('offlineOSQueue') || '[]');
+        
+        if (offlineQueue.length === 0) return;
+
+        // Notificação visual simples
+        const confirmSync = window.confirm(`Internet detectada! Existem ${offlineQueue.length} OS(s) salvas offline. Deseja sincronizar agora?`);
+        if (!confirmSync) return;
+
+        console.log(`Iniciando sincronização de ${offlineQueue.length} ordens...`);
+        
+        const newQueue = [];
+        let successCount = 0;
+
+        for (const item of offlineQueue) {
+            try {
+                // Recupera dados brutos salvos no localStorage
+                const { 
+                    tecnicoFinal, 
+                    dateString, 
+                    targetCollectionName, 
+                    numeroOS, 
+                    payload, 
+                    // statsUpdateData não é usado diretamente pois 'increment' não serializa em JSON.
+                    // Reconstruímos a lógica de stats abaixo.
+                    valorNumerico,
+                    limpezaAprovada,
+                    tipoOS
+                } = item;
+
+                console.log(`Sincronizando OS: ${numeroOS}...`);
+
+                // 1. Salvar estrutura de Pastas (Técnico -> Data -> Coleção)
+                const tecnicoDocRef = doc(db, 'ordensDeServico', tecnicoFinal);
+                await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true });
+
+                const osPorDataCollectionRef = collection(tecnicoDocRef, 'osPorData');
+                const dataDocRef = doc(osPorDataCollectionRef, dateString);
+                await setDoc(dataDocRef, { data: dateString }, { merge: true });
+
+                const targetCollectionRef = collection(dataDocRef, targetCollectionName);
+                const osDocRef = doc(targetCollectionRef, numeroOS);
+
+                // 2. Salvar a OS (Recriando Timestamps do servidor)
+                await setDoc(osDocRef, {
+                    ...payload,
+                    dataGeracao: serverTimestamp(), // Data real da entrada no banco
+                    sincronizadoEm: new Date().toISOString(), // Marca d'água da sincronização
+                    origem: "offline_sync"
+                });
+
+                // 3. Atualizar Estatísticas (Reconstruindo objetos FieldValue)
+                const statsDocRef = doc(db, 'technicianStats', tecnicoFinal);
+                
+                // Recria o objeto de update com 'increment' e 'arrayUnion'
+                const statsUpdateData = {
+                    totalOS: increment(1),
+                    lastUpdate: serverTimestamp(),
+                    samsungOS: increment(tipoOS === 'samsung' ? 1 : 0),
+                    assurantOS: increment(tipoOS === 'assurant' ? 1 : 0),
+                };
+
+                if (valorNumerico > 0) {
+                    statsUpdateData.orc_aprovado = increment(valorNumerico);
+                    statsUpdateData.lista_orcamentos_aprovados = arrayUnion(numeroOS);
+                }
+
+                if (limpezaAprovada) {
+                    statsUpdateData.limpezas_realizadas = increment(1);
+                    statsUpdateData.lista_limpezas = arrayUnion(numeroOS);
+                }
+
+                // Tenta atualizar ou criar se não existir
+                await updateDoc(statsDocRef, statsUpdateData).catch(async () => {
+                    // Fallback para criar documento se não existir (sem o updateDoc)
+                    const initialStats = {
+                        totalOS: 1,
+                        samsungOS: tipoOS === 'samsung' ? 1 : 0,
+                        assurantOS: tipoOS === 'assurant' ? 1 : 0,
+                        orc_aprovado: valorNumerico,
+                        limpezas_realizadas: limpezaAprovada ? 1 : 0,
+                        lista_orcamentos_aprovados: valorNumerico > 0 ? [numeroOS] : [],
+                        lista_limpezas: limpezaAprovada ? [numeroOS] : [],
+                        lastUpdate: serverTimestamp()
+                    };
+                    await setDoc(statsDocRef, initialStats);
+                });
+
+                successCount++;
+
+            } catch (error) {
+                console.error(`Erro ao sincronizar OS ${item.numeroOS}:`, error);
+                newQueue.push(item); // Mantém na fila se der erro
+            }
+        }
+
+        // Atualiza a fila local
+        localStorage.setItem('offlineOSQueue', JSON.stringify(newQueue));
+        
+        if (successCount > 0) {
+            alert(`${successCount} OS(s) sincronizada(s) com sucesso! 🚀`);
+        }
+        if (newQueue.length > 0) {
+            alert(`Atenção: ${newQueue.length} OS(s) falharam na sincronização e serão tentadas novamente depois.`);
+        }
+    };
+
+    // Listener para detectar retorno da internet
+    useEffect(() => {
+        const handleOnline = () => syncOfflineData();
+        window.addEventListener('online', handleOnline);
+        
+        // Verifica também ao montar o componente
+        if (navigator.onLine) {
+            syncOfflineData();
+        }
+
+        return () => window.removeEventListener('online', handleOnline);
+    }, []);
+
+    // --- FUNÇÕES DE SUPORTE ---
+
     const requestLocation = () => {
         if (!("geolocation" in navigator)) {
             alert("Seu navegador não suporta geolocalização.");
@@ -76,7 +200,6 @@ function Form({ setFormData }) {
         );
     };
 
-    // Tenta pegar localização ao montar
     useEffect(() => {
         requestLocation();
         // eslint-disable-next-line
@@ -113,7 +236,6 @@ function Form({ setFormData }) {
         }
     }, [isSamsung]);
 
-    // --- FUNÇÃO AUXILIAR PARA PEGAR A SEMANA DO ANO (ISO 8601) ---
     const getISOWeek = (date) => {
         const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
         const dayNum = d.getUTCDay() || 7;
@@ -150,7 +272,6 @@ function Form({ setFormData }) {
         }
         obsText += observacoes;
 
-
         return `
 OS: ${numero}
 Cliente: ${cliente}
@@ -185,13 +306,14 @@ ${obsText}
         setLimpezaAprovada(false);
     };
 
+    // --- HANDLE SUBMIT MODIFICADO (ONLINE/OFFLINE) ---
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        // --- VALIDAÇÃO DE LOCALIZAÇÃO (BLOQUEANTE) ---
+        // 1. Bloqueio por falta de localização
         if (!userLocation) {
             alert("ATENÇÃO: A localização não foi capturada. Garanta que a localização está ativada e tente novamente.");
-            return; // Impede o envio
+            return; 
         }
 
         const tipoOS = isSamsung ? 'samsung' : 'assurant';
@@ -229,6 +351,7 @@ ${obsText}
 
         const pecaFinal = isSamsung ? peca : '';
 
+        // Gera o texto para exibição (setFormData)
         const resultadoTexto = gerarTextoResultado({
             numero: numeroOS,
             cliente: clienteNome,
@@ -245,24 +368,54 @@ ${obsText}
             limpezaAprovada,
         });
 
-        setFormData(resultadoTexto);
-
+        
         try {
-            // --- CÁLCULOS DE DATA E SEMANA ---
+            // Preparação dos dados
             const today = new Date();
             const weekNumber = getISOWeek(today);
             const year = today.getFullYear();
-            
-            const dateString = today.getFullYear() + '-' +
-                String(today.getMonth() + 1).padStart(2, '0') + '-' +
-                String(today.getDate()).padStart(2, '0');
-            
-            // Formatando Data e Hora para exibição (ex: 28/10/2023 14:30)
-            const dataHoraFormatada = today.toLocaleString('pt-BR', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-            });
+            const dateString = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+            const dataHoraFormatada = today.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const valorNumerico = (orcamentoAprovado && orcamentoValor) ? parseFloat(orcamentoValor) : 0;
+            const targetCollectionName = isSamsung ? 'Samsung' : 'Assurant';
 
+            // Payload para salvar
+            const payloadDoc = {
+                numeroOS, cliente: clienteNome, tecnico: tecnicoFinal, tipoOS,
+                defeito: defeitoFinal, reparo: reparoFinal, pecaSubstituida: pecaFinal,
+                ppidPecaNova, ppidPecaUsada, observacoes,
+                semana: weekNumber, ano: year, valorOrcamento: valorNumerico, isLimpeza: limpezaAprovada,
+                dataHoraCriacao: dataHoraFormatada,
+                localizacao: userLocation, // Localização capturada
+                dataGeracaoLocal: new Date().toISOString()
+            };
+
+            // --- FLUXO OFFLINE ---
+            if (!navigator.onLine) {
+                const offlineData = {
+                    tecnicoFinal,
+                    dateString,
+                    targetCollectionName,
+                    numeroOS,
+                    payload: payloadDoc,
+                    // Dados auxiliares para reconstruir stats
+                    valorNumerico,
+                    limpezaAprovada,
+                    tipoOS
+                };
+
+                const currentQueue = JSON.parse(localStorage.getItem('offlineOSQueue') || '[]');
+                currentQueue.push(offlineData);
+                localStorage.setItem('offlineOSQueue', JSON.stringify(currentQueue));
+
+                setFormData(`[MODO OFFLINE 📡] OS ${numeroOS} salva no dispositivo.\n\n${resultadoTexto}`);
+                alert("⚠️ Sem internet! Dados salvos no dispositivo. Serão enviados automaticamente quando a conexão voltar.");
+                limparFormulario();
+                return;
+            }
+
+            // --- FLUXO ONLINE (PADRÃO) ---
+            
             const tecnicoDocRef = doc(db, 'ordensDeServico', tecnicoFinal);
             await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true });
 
@@ -270,43 +423,16 @@ ${obsText}
             const dataDocRef = doc(osPorDataCollectionRef, dateString);
             await setDoc(dataDocRef, { data: dateString }, { merge: true });
 
-            const targetCollectionName = isSamsung ? 'Samsung' : 'Assurant';
             const targetCollectionRef = collection(dataDocRef, targetCollectionName);
             const osDocRef = doc(targetCollectionRef, numeroOS);
 
-            // Prepara o valor do orçamento
-            const valorNumerico = (orcamentoAprovado && orcamentoValor) ? parseFloat(orcamentoValor) : 0;
-
             await setDoc(osDocRef, {
-                numeroOS: numeroOS,
-                cliente: clienteNome,
-                tecnico: tecnicoFinal,
-                tipoOS: tipoOS,
-                defeito: defeitoFinal,
-                reparo: reparoFinal,
-                pecaSubstituida: pecaFinal,
-                ppidPecaNova: ppidPecaNova,
-                ppidPecaUsada: ppidPecaUsada,
-                observacoes: observacoes,
-                
-                // NOVOS MARCADORES DE TEMPO
-                semana: weekNumber,
-                ano: year,
-                valorOrcamento: valorNumerico,
-                isLimpeza: limpezaAprovada,
-                dataHoraCriacao: dataHoraFormatada, // Campo string legível
-                
-                // LOCALIZAÇÃO OBRIGATÓRIA
-                localizacao: userLocation,
-
+                ...payloadDoc,
                 dataGeracao: serverTimestamp(),
-                dataGeracaoLocal: new Date().toISOString()
             });
 
-            // --- ATUALIZAR ESTATÍSTICAS DO TÉCNICO ---
+            // Stats
             const statsDocRef = doc(db, 'technicianStats', tecnicoFinal);
-            const statsDoc = await getDoc(statsDocRef);
-
             const statsUpdateData = {
                 totalOS: increment(1),
                 lastUpdate: serverTimestamp(),
@@ -318,15 +444,12 @@ ${obsText}
                 statsUpdateData.orc_aprovado = increment(valorNumerico);
                 statsUpdateData.lista_orcamentos_aprovados = arrayUnion(numeroOS);
             }
-
             if (limpezaAprovada) {
                 statsUpdateData.limpezas_realizadas = increment(1);
                 statsUpdateData.lista_limpezas = arrayUnion(numeroOS);
             }
             
-            if (statsDoc.exists()) {
-                await updateDoc(statsDocRef, statsUpdateData);
-            } else {
+            await updateDoc(statsDocRef, statsUpdateData).catch(async () => {
                 const initialStatsData = {
                     totalOS: 1,
                     samsungOS: tipoOS === 'samsung' ? 1 : 0,
@@ -335,29 +458,18 @@ ${obsText}
                     limpezas_realizadas: limpezaAprovada ? 1 : 0,
                     lista_orcamentos_aprovados: valorNumerico > 0 ? [numeroOS] : [],
                     lista_limpezas: limpezaAprovada ? [numeroOS] : [],
-                    ...statsUpdateData, 
+                    lastUpdate: serverTimestamp()
                 };
-                delete initialStatsData.orc_aprovado; 
-                delete initialStatsData.totalOS;
-                delete initialStatsData.samsungOS;
-                delete initialStatsData.assurantOS;
-                
-                await setDoc(statsDocRef, {
-                    ...initialStatsData,
-                    totalOS: 1,
-                    samsungOS: tipoOS === 'samsung' ? 1 : 0,
-                    assurantOS: tipoOS === 'assurant' ? 1 : 0,
-                    orc_aprovado: valorNumerico,
-                    limpezas_realizadas: limpezaAprovada ? 1 : 0
-                });
-            }
+                await setDoc(statsDocRef, initialStatsData);
+            });
 
+            setFormData(resultadoTexto);
             console.log('Ordem de serviço e estatísticas atualizadas com sucesso!');
             alert(`Resumo gerado! OS registrada na Semana ${weekNumber}.`);
 
         } catch (e) {
             console.error("Erro ao adicionar documento: ", e);
-            alert('Erro ao cadastrar dados no Firebase. Verifique o console para mais detalhes.');
+            alert('Erro ao processar dados. Se estiver sem internet, tente novamente (o modo offline deve ativar).');
         }
     };
 
@@ -632,9 +744,9 @@ ${obsText}
                     onChange={(e) => setTecnicoManual(e.target.value)}
                 />
                 
-                {/* --- BOTÃO DE LOCALIZAÇÃO ADICIONADO --- */}
+                {/* --- BOTÃO DE LOCALIZAÇÃO --- */}
                 <div className="location-control" style={{ marginBottom: '15px' }}>
-                    <label>Localização:</label>
+                    <label>Localização (obrigatório):</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <button 
                             type="button" 
