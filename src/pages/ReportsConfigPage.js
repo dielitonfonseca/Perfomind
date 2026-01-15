@@ -170,7 +170,6 @@ const RankingPodium = ({ rankings, metricLabel, titleSuffix = '' }) => {
     );
 };
 
-
 // --- AUXILIARES ---
 const calculateConsecutiveWeeks = (kpis, key, threshold, condition) => {
     let consecutiveWeeks = 0;
@@ -212,19 +211,31 @@ const ReportsConfigPage = () => {
   const [reportSubtitle, setReportSubtitle] = useState(''); 
   const [selectedWeek, setSelectedWeek] = useState(''); 
   
+  // Layouts
   const [highlightLayout, setHighlightLayout] = useState('side-by-side');
-  const [generalLayout, setGeneralLayout] = useState('side-by-side');
+  const [generalLayout, setGeneralLayout] = useState('full-width'); 
 
   const [detailedDataCache, setDetailedDataCache] = useState({});
   const [isFetchingDetailed, setIsFetchingDetailed] = useState(false);
 
-  // Estados de Configuração
   const [highlight, setHighlight] = useState({ active: false, chartType: 'none', tech: 'Todos', metric: 'productivity', comment: '', week: '' });
   const [attention, setAttention] = useState({ active: false, chartType: 'none', tech: 'Todos', metric: 'productivity', comment: '', week: '' });
   
-  // Rankings Duplos
   const [ranking1, setRanking1] = useState({ active: false, metric: 'productivity' });
   const [ranking2, setRanking2] = useState({ active: false, metric: 'totalApprovedBudget' });
+
+  // --- NOVO: Estado para as Pautas 1 a 5 ---
+  const [pautas, setPautas] = useState([
+      { id: 1, active: false, title: '', text: '' },
+      { id: 2, active: false, title: '', text: '' },
+      { id: 3, active: false, title: '', text: '' },
+      { id: 4, active: false, title: '', text: '' },
+      { id: 5, active: false, title: '', text: '' },
+  ]);
+
+  const updatePauta = (id, field, value) => {
+      setPautas(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
 
   const [chartsConfig, setChartsConfig] = useState([
     { id: 'ltp_vd', name: 'LTP VD %', active: true, keys: [{ dataKey: 'LTP VD %', stroke: '#00C49F', name: 'LTP VD %' }], meta: [{ value: 12.8, stroke: '#ffc658', label: 'Meta 12.8%' }, { value: 5, stroke: '#FF0000', label: 'P4P 5%' }] },
@@ -347,8 +358,6 @@ const ReportsConfigPage = () => {
          if (selectedWeek) weeksNeeded.add(selectedWeek);
          if (highlight.active && highlight.chartType === 'detalhado' && highlight.week) weeksNeeded.add(highlight.week);
          if (attention.active && attention.chartType === 'detalhado' && attention.week) weeksNeeded.add(attention.week);
-         
-         // Rankings usam selectedWeek
          if ((ranking1.active || ranking2.active) && selectedWeek) weeksNeeded.add(selectedWeek);
 
          const weeksToFetch = Array.from(weeksNeeded).filter(w => !detailedDataCache[w]);
@@ -366,45 +375,29 @@ const ReportsConfigPage = () => {
      if (technicians.length > 0) fetchAllNeeded();
   }, [selectedWeek, highlight.week, attention.week, highlight.active, attention.active, ranking1.active, ranking2.active, technicians]);
 
-  // --- LÓGICA DE CÁLCULO DE RANKING ---
   const getRankings = (metricToUse) => {
       if (!selectedWeek || !detailedDataCache[selectedWeek]) return [];
-
-      // Filtra apenas técnicos reais
       const validTechs = technicians.filter(t => t !== 'Todos');
-
       const results = validTechs.map(tech => {
           const data = detailedDataCache[selectedWeek][tech] || [];
-          
-          let value = 0;
-          let formattedValue = '';
-
-          // Agregações
+          let value = 0; let formattedValue = '';
           const totalOS = data.reduce((acc, item) => acc + (item.productivity || 0), 0);
           const totalBudget = data.reduce((acc, item) => acc + (item.totalApprovedBudget || 0), 0);
           const totalApprovedCount = data.reduce((acc, item) => acc + (item.approvedCount || 0), 0);
 
           if (metricToUse === 'productivity') {
-              value = totalOS;
-              formattedValue = `${value} OSs`;
+              value = totalOS; formattedValue = `${value} OSs`;
           } else if (metricToUse === 'totalApprovedBudget') {
-              value = totalBudget;
-              formattedValue = `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+              value = totalBudget; formattedValue = `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
           } else if (metricToUse === 'adjustedProductivity') {
-              value = totalOS > 0 ? (totalApprovedCount / totalOS) * 100 : 0;
-              formattedValue = `${value.toFixed(2)}%`;
+              value = totalOS > 0 ? (totalApprovedCount / totalOS) * 100 : 0; formattedValue = `${value.toFixed(2)}%`;
           } else if (metricToUse === 'avgApprovedRevenue') {
-              value = totalApprovedCount > 0 ? totalBudget / totalApprovedCount : 0;
-              formattedValue = `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+              value = totalApprovedCount > 0 ? totalBudget / totalApprovedCount : 0; formattedValue = `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
           } else if (metricToUse === 'revenuePerOrder') {
-              value = totalOS > 0 ? totalBudget / totalOS : 0;
-              formattedValue = `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+              value = totalOS > 0 ? totalBudget / totalOS : 0; formattedValue = `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
           }
-
           return { tech, value, formattedValue };
       });
-
-      // Ordena decrescente e pega Top 3
       return results.sort((a, b) => b.value - a.value).slice(0, 3);
   };
 
@@ -450,24 +443,24 @@ const ReportsConfigPage = () => {
         gridContainer.style.flexWrap = 'wrap';
         gridContainer.style.gap = '15px'; 
         gridContainer.style.alignContent = 'flex-start';
+        
+        const gridItems = input.querySelectorAll('.pdf-chart-item');
+        gridItems.forEach(item => {
+            item.style.width = '100%';
+            item.style.flex = 'none';
+            item.style.marginBottom = '20px'; 
+        });
     }
-    
-    const gridItems = input.querySelectorAll('.pdf-chart-item');
-    gridItems.forEach(item => {
-        item.style.flex = generalLayout === 'side-by-side' ? '0 0 48%' : '0 0 100%';
-        item.style.marginBottom = '15px'; 
-    });
 
-    const elementsToCheck = Array.from(input.querySelectorAll('.pdf-header, .pdf-highlights-area, .pdf-ranking-section, .pdf-chart-item, .pdf-footer-split'));
+    // --- ADICIONADO .pdf-pauta-item na verificação de quebra de página ---
+    const elementsToCheck = Array.from(input.querySelectorAll('.pdf-header, .pdf-highlights-area, .pdf-ranking-section, .pdf-chart-item, .pdf-pauta-item, .pdf-footer-split'));
     const originalMargins = [];
 
     let currentPageHeight = 0;
-    let elementsOnCurrentPage = [];
-    
     const header = input.querySelector('.pdf-header');
-    if (header) {
-        currentPageHeight += 56; 
-    }
+    if (header) currentPageHeight += 56; 
+
+    let elementsOnCurrentPage = [];
 
     elementsToCheck.forEach((el) => {
         const style = window.getComputedStyle(el);
@@ -540,7 +533,9 @@ const ReportsConfigPage = () => {
             gridContainer.style.gap = originalGridGap;
             gridContainer.style.alignContent = '';
         }
+        const gridItems = input.querySelectorAll('.pdf-chart-item');
         gridItems.forEach(item => {
+            item.style.width = '';
             item.style.flex = '';
             item.style.marginBottom = '';
         });
@@ -601,21 +596,9 @@ const ReportsConfigPage = () => {
                  </div>
              </div>
         </div>
-        <div className="toggle-item small">
-             <div className="toggle-header">
-                 <span>Layout Gráficos</span>
-                 <div className="layout-slider-container">
-                    <span className={generalLayout === 'side-by-side' ? 'active' : ''}>Grade</span>
-                    <label className="switch">
-                        <input type="checkbox" checked={generalLayout === 'full-width'} onChange={() => setGeneralLayout(prev => prev === 'side-by-side' ? 'full-width' : 'side-by-side')} />
-                        <span className="slider round"></span>
-                    </label>
-                    <span className={generalLayout === 'full-width' ? 'active' : ''}>Lista</span>
-                 </div>
-             </div>
-        </div>
 
         <div className="config-divider">Destaques</div>
+        {/* ... Destaques e Ponto de Atenção (Mantidos iguais) ... */}
         <div className="toggle-item">
             <div className="toggle-header">
                 <span>Destaque Semanal</span>
@@ -680,7 +663,7 @@ const ReportsConfigPage = () => {
             )}
         </div>
 
-        {/* --- SEÇÃO DE RANKING #1 --- */}
+        {/* --- RANKINGS --- */}
         <div className="toggle-item">
             <div className="toggle-header">
                 <span>Ranking Top 3 - #1</span>
@@ -699,7 +682,6 @@ const ReportsConfigPage = () => {
             )}
         </div>
 
-        {/* --- SEÇÃO DE RANKING #2 --- */}
         <div className="toggle-item">
             <div className="toggle-header">
                 <span>Ranking Top 3 - #2</span>
@@ -732,6 +714,42 @@ const ReportsConfigPage = () => {
                 </div>
             </div>
         ))}
+
+        {/* --- NOVAS PAUTAS 1 A 5 --- */}
+        <div className="config-divider">Pautas da Reunião</div>
+        {pautas.map((pauta) => (
+            <div key={pauta.id} className="toggle-item">
+                <div className="toggle-header">
+                    <span>Pauta {pauta.id}</span>
+                    <label className="switch">
+                        <input 
+                            type="checkbox" 
+                            checked={pauta.active} 
+                            onChange={(e) => updatePauta(pauta.id, 'active', e.target.checked)} 
+                        />
+                        <span className="slider round"></span>
+                    </label>
+                </div>
+                {pauta.active && (
+                    <div className="toggle-content fade-in">
+                        <input 
+                            type="text" 
+                            placeholder="Título da Pauta" 
+                            value={pauta.title}
+                            onChange={(e) => updatePauta(pauta.id, 'title', e.target.value)}
+                            style={{marginBottom: '10px'}}
+                        />
+                        <textarea 
+                            rows="4" 
+                            placeholder="Descrição da pauta, ata ou observações..." 
+                            value={pauta.text}
+                            onChange={(e) => updatePauta(pauta.id, 'text', e.target.value)}
+                        />
+                    </div>
+                )}
+            </div>
+        ))}
+
         <button className="btn-generate" onClick={handleExportPDF}>GERAR PDF</button>
       </div>
 
@@ -742,7 +760,7 @@ const ReportsConfigPage = () => {
                     <h1>{reportTitle || 'Relatório de Performance'}</h1>
                     {reportSubtitle && <span className="header-subtitle">{reportSubtitle}</span>}
                 </div>
-               {/*<p>Perfomind Analytics</p> */} 
+                {/*<p>Perfomind Analytics</p> */}
             </div>
 
             {(highlight.active || attention.active) && (
@@ -768,7 +786,6 @@ const ReportsConfigPage = () => {
                 </div>
             )}
 
-            {/* --- RANKINGS --- */}
             {ranking1.active && (
                 <div className="pdf-ranking-section">
                      <RankingPodium 
@@ -790,6 +807,20 @@ const ReportsConfigPage = () => {
                 {chartsConfig.filter(c => c.active).map(chart => (
                     <div key={chart.id} className="pdf-chart-item">
                         <ReportChart data={filteredKpiChartData} title={chart.name} dataKeys={chart.keys} meta={chart.meta} />
+                    </div>
+                ))}
+            </div>
+
+            {/* --- RENDERIZAÇÃO DAS PAUTAS NO PDF --- */}
+            <div className="pdf-pautas-container">
+                {pautas.map(pauta => pauta.active && (
+                    <div key={pauta.id} className="pdf-pauta-item">
+                        <h4 style={{color: '#00C49F', borderBottom: '1px solid #444', paddingBottom: '5px', marginBottom: '10px'}}>
+                            {pauta.title || `Pauta ${pauta.id}`}
+                        </h4>
+                        <p style={{whiteSpace: 'pre-wrap', color: '#ccc', fontSize: '14px', lineHeight: '1.5'}}>
+                            {pauta.text}
+                        </p>
                     </div>
                 ))}
             </div>
