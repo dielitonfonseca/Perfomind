@@ -1,4 +1,3 @@
-// src/components/Form.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment, arrayUnion, addDoc } from 'firebase/firestore';
@@ -154,9 +153,39 @@ function Form({ setFormData }) {
         return () => window.removeEventListener('online', handleOnline);
     }, []);
 
-    // --- FUNÇÕES DE SUPORTE ---
+    // 🔴 LOCALIZAÇÃO COM ATUALIZAÇÃO IMEDIATA NO FIREBASE 🔴
+    // Função auxiliar para salvar no Firebase imediatamente ao obter coordenadas
+    const saveLocationToFirebase = async (locationData) => {
+        const techName = localStorage.getItem('savedTechName') || localStorage.getItem('tecnico');
+        
+        // Só salva se tiver técnico identificado e internet
+        if (!techName || !navigator.onLine) return;
 
-    // 🔴 LOCALIZAÇÃO COM TEXTO DINÂMICO E USER AGENT 🔴
+        try {
+            const rastroData = {
+                ...locationData,
+                timestamp: serverTimestamp(),
+                dataLocal: new Date().toISOString(),
+                origem: 'atualizacao_manual', // Flag indicando que não foi gerada OS, foi abertura/botão
+                osVinculada: null
+            };
+
+            // 1. Atualiza Última Localização (para o mapa "Todos")
+            await setDoc(doc(db, 'rastreamento', techName), {
+                lastLocation: rastroData,
+                updatedAt: serverTimestamp(),
+                nome: techName
+            }, { merge: true });
+
+            // 2. Adiciona ao Histórico
+            await addDoc(collection(db, 'rastreamento', techName, 'historico'), rastroData);
+            
+            console.log(`📍 Localização de ${techName} enviada para nuvem (sem OS).`);
+        } catch (e) {
+            console.error("Erro ao salvar localização em background:", e);
+        }
+    };
+
     const requestLocation = () => {
         if (!("geolocation" in navigator)) {
             alert("Seu navegador não suporta geolocalização.");
@@ -176,32 +205,31 @@ function Form({ setFormData }) {
         
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setUserLocation({
+                const newLocation = {
                     latitude: position.coords.latitude,
                     longitude: position.coords.longitude,
                     accuracy: position.coords.accuracy,
                     timestamp: new Date().toISOString(),
-                    userAgent: navigator.userAgent // <--- CAPTURA DO DISPOSITIVO
-                });
+                    userAgent: navigator.userAgent
+                };
+
+                setUserLocation(newLocation);
                 setLocationStatus('success');
 
-                // --- LÓGICA DE TEXTO DO BOTÃO ---
-                const locationTime = position.timestamp; // Timestamp de quando a posição foi pega
-                const currentTime = Date.now();
-                const age = currentTime - locationTime; // Idade da localização em ms
+                // 🔥 ENVIA PARA O FIREBASE IMEDIATAMENTE 🔥
+                saveLocationToFirebase(newLocation);
 
-                // Se a localização tem mais de 2 segundos, consideramos "Anterior" (Cache)
+                // Lógica de texto do botão
+                const age = Date.now() - position.timestamp;
                 if (age > 2000) {
                     setLocationMsg("Utilizando localização anterior");
                 } else if (!navigator.onLine) {
-                    // Se é nova (age < 2s) e estamos offline
                     setLocationMsg("Localização offline encontrada");
                 } else {
-                    // Se é nova e estamos online
-                    setLocationMsg("Localização Obtida");
+                    setLocationMsg("Localização Obtida e Enviada ☁️");
                 }
 
-                console.log("Localização obtida:", position.coords, "Idade (ms):", age);
+                console.log("Localização obtida:", position.coords);
             },
             (error) => {
                 console.error("Erro ao obter localização:", error);
@@ -218,6 +246,7 @@ function Form({ setFormData }) {
         );
     };
 
+    // Solicita localização ao montar o componente (App aberto)
     useEffect(() => {
         requestLocation();
         // eslint-disable-next-line
@@ -241,7 +270,7 @@ function Form({ setFormData }) {
         const nomeFinal = tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect;
         if(nomeFinal) {
             localStorage.setItem('tecnico', nomeFinal);
-            localStorage.setItem('savedTechName', nomeFinal); // Salva para o App.js usar no rastreio automatico
+            localStorage.setItem('savedTechName', nomeFinal); 
         }
     }, [tecnicoSelect, tecnicoManual]);
 
@@ -454,14 +483,14 @@ ${obsText}
                 await setDoc(statsDocRef, initialStatsData);
             });
 
-            // 🔴 ATUALIZAR RASTREAMENTO DO TÉCNICO COM FLAG DE OS 🔴
+            // 🔴 ATUALIZAR RASTREAMENTO COM FLAG DE OS 🔴
             try {
                 const rastroData = {
                     ...userLocation,
                     timestamp: serverTimestamp(),
                     dataLocal: new Date().toISOString(),
-                    origem: 'geracao_os',   // FLAG ESPECÍFICA DE OS
-                    osVinculada: numeroOS   // NÚMERO DA OS
+                    origem: 'geracao_os',   // FLAG DE ORDEM DE SERVIÇO
+                    osVinculada: numeroOS   // VÍNCULO COM A OS
                 };
                 
                 // Salva no Histórico
@@ -654,7 +683,7 @@ ${obsText}
                 
                 {/* --- BOTÃO DE LOCALIZAÇÃO ADAPTADO --- */}
                 <div className="location-control" style={{ marginBottom: '15px' }}>
-                    <label>Localização (obrigatório):</label>
+                    <label>Localização:</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <button 
                             type="button" 
