@@ -42,27 +42,41 @@ function RastreamentoTecPage() {
     // eslint-disable-next-line
   }, [filterTech, filterType, technicians]); 
 
+  // --- MELHORIA NA IDENTIFICAÇÃO DO MODELO ---
   const formatDevice = (userAgent) => {
       if (!userAgent) return 'Desconhecido';
-      let os = 'Outro';
-      if (userAgent.includes('Win')) os = 'Windows';
-      else if (userAgent.includes('Mac')) os = 'MacOS';
-      else if (userAgent.includes('Linux') && !userAgent.includes('Android')) os = 'Linux';
-      else if (userAgent.includes('Android')) os = 'Android';
-      else if (userAgent.includes('like Mac')) os = 'iOS';
-
-      let browser = 'Nav';
-      if (userAgent.includes('Chrome')) browser = 'Chrome';
-      else if (userAgent.includes('Firefox')) browser = 'Firefox';
-      else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) browser = 'Safari';
-      else if (userAgent.includes('Edg')) browser = 'Edge';
-
+      
+      let os = '';
       let model = '';
-      if (os === 'Android') {
-          const match = userAgent.match(/; ([^;]+) Build\//);
-          if (match && match[1]) model = ` - ${match[1]}`;
-      }
-      return `${os} (${browser})${model}`;
+
+      // Detector Android
+      if (/android/i.test(userAgent)) {
+          os = 'Android';
+          // Tenta extrair o modelo entre ponto e vírgula e o "Build" ou parenteses
+          // Ex: "... Android 10; SM-A325M Build/..." -> Pega SM-A325M
+          const match = userAgent.match(/Android\s([0-9.]+);\s([^)]+)/);
+          if (match && match[2]) {
+              // Remove a parte "Build/..." se vier junto
+              model = match[2].split(' Build')[0].trim();
+              // Se o modelo capturado for apenas "wv" ou "K", ignora (são webviews genéricas)
+              if (model.length < 3) model = ''; 
+          }
+      } 
+      // Detector iOS (iPhone/iPad)
+      else if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+          os = 'iOS';
+          if (userAgent.includes('iPhone')) model = 'iPhone';
+          else if (userAgent.includes('iPad')) model = 'iPad';
+      } 
+      // Outros
+      else if (/Win/.test(userAgent)) os = 'Windows PC';
+      else if (/Mac/.test(userAgent)) os = 'Mac';
+      else if (/Linux/.test(userAgent)) os = 'Linux';
+
+      // Monta a string final
+      if (model && os) return `${model} (${os})`;
+      if (os) return os;
+      return 'Navegador/Outro';
   };
 
   const filterDuplicates = (data) => {
@@ -154,7 +168,7 @@ function RastreamentoTecPage() {
   return (
     <div style={styles.container} className="output">
       <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Rastreamento de Técnicos 🗺️</h2>
-      {/* ... (FILTROS MANTIDOS IGUAIS) ... */}
+
       <div style={styles.filterContainer}>
         <div style={styles.filterGroup}>
           <label style={styles.label}>Técnico:</label>
@@ -163,6 +177,7 @@ function RastreamentoTecPage() {
              {technicians.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+
         {filterTech !== 'Todos' && (
             <div style={styles.filterGroup}>
             <label style={styles.label}>Período:</label>
@@ -173,6 +188,7 @@ function RastreamentoTecPage() {
             </select>
             </div>
         )}
+
         {filterTech !== 'Todos' && filterType === 'date' && (
           <>
             <div style={styles.filterGroup}>
@@ -185,8 +201,11 @@ function RastreamentoTecPage() {
             </div>
           </>
         )}
+
         <div style={{ alignSelf: 'flex-end', marginBottom: '2px' }}>
-          <button style={styles.btn} onClick={handleSearch} disabled={loading}>{loading ? '...' : 'Atualizar'}</button>
+          <button style={styles.btn} onClick={handleSearch} disabled={loading}>
+            {loading ? '...' : 'Atualizar'}
+          </button>
         </div>
       </div>
 
@@ -195,10 +214,9 @@ function RastreamentoTecPage() {
           <table style={styles.table}>
             <thead>
               <tr>
-                <th style={styles.th}>Dispositivo</th>
+                <th style={styles.th}>Modelo</th>
                 <th style={styles.th}>Técnico</th>
                 <th style={styles.th}>Data/Hora</th>
-                {/* --- NOVA COLUNA OS --- */}
                 <th style={styles.th}>OS</th> 
                 <th style={styles.th}>Latitude</th>
                 <th style={styles.th}>Longitude</th>
@@ -209,11 +227,14 @@ function RastreamentoTecPage() {
             <tbody>
               {logs.map((log, idx) => (
                 <tr key={log.id || idx} style={{ background: idx % 2 === 0 ? '#2a2a2a' : '#333' }}>
-                  <td style={{...styles.td, fontSize:'0.85em', color:'#aaa'}}>{formatDevice(log.userAgent)}</td>
+                  {/* EXIBIÇÃO FORMATADA DO MODELO */}
+                  <td style={{...styles.td, fontSize:'0.85em', color:'#aaa', fontWeight:'bold'}}>
+                    {formatDevice(log.userAgent)}
+                  </td>
                   <td style={{...styles.td, fontWeight: 'bold', color: '#00C49F'}}>{log.tecnico}</td>
                   <td style={styles.td}>{log.displayDate}</td>
                   
-                  {/* --- LÓGICA DE EXIBIÇÃO DA OS --- */}
+                  {/* COLUNA OS */}
                   <td style={{...styles.td, fontWeight: log.osVinculada ? 'bold' : 'normal', color: log.osVinculada ? '#fff' : '#666'}}>
                       {log.osVinculada || 'N/A'}
                   </td>
