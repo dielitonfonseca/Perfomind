@@ -42,40 +42,43 @@ function RastreamentoTecPage() {
     // eslint-disable-next-line
   }, [filterTech, filterType, technicians]); 
 
-  // --- MELHORIA NA IDENTIFICAÇÃO DO MODELO ---
+  // --- FUNÇÃO APRIMORADA PARA DETECTAR MODELO ---
   const formatDevice = (userAgent) => {
       if (!userAgent) return 'Desconhecido';
       
       let os = '';
       let model = '';
 
-      // Detector Android
+      // Lógica agressiva para Android
       if (/android/i.test(userAgent)) {
           os = 'Android';
-          // Tenta extrair o modelo entre ponto e vírgula e o "Build" ou parenteses
-          // Ex: "... Android 10; SM-A325M Build/..." -> Pega SM-A325M
-          const match = userAgent.match(/Android\s([0-9.]+);\s([^)]+)/);
-          if (match && match[2]) {
-              // Remove a parte "Build/..." se vier junto
-              model = match[2].split(' Build')[0].trim();
-              // Se o modelo capturado for apenas "wv" ou "K", ignora (são webviews genéricas)
-              if (model.length < 3) model = ''; 
+          
+          // Regex explica: Procure "Android", ignore a versão, ache o ";" e pegue TUDO até encontrar "Build" ou fechar parenteses ")"
+          const match = userAgent.match(/Android.*?;(.*?)(?:Build|\))/i);
+          
+          if (match && match[1]) {
+              model = match[1].trim();
+              
+              // Limpeza extra: remove palavras comuns que não são modelos
+              model = model.replace('wv', '').replace('Mobile', '').trim();
+              
+              // Se sobrar apenas "K" ou algo muito curto (proteção de privacidade do Chrome), avisa
+              if (model === 'K' || model.length <= 1) {
+                  model = ''; // Deixa vazio para mostrar apenas "Android" ou tenta pegar outra info
+              }
           }
       } 
-      // Detector iOS (iPhone/iPad)
       else if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
           os = 'iOS';
           if (userAgent.includes('iPhone')) model = 'iPhone';
           else if (userAgent.includes('iPad')) model = 'iPad';
       } 
-      // Outros
       else if (/Win/.test(userAgent)) os = 'Windows PC';
       else if (/Mac/.test(userAgent)) os = 'Mac';
       else if (/Linux/.test(userAgent)) os = 'Linux';
 
-      // Monta a string final
-      if (model && os) return `${model} (${os})`;
-      if (os) return os;
+      if (model) return `${model} (${os})`;
+      if (os) return os; // Retorna só "Android" se não achar modelo
       return 'Navegador/Outro';
   };
 
@@ -234,7 +237,6 @@ function RastreamentoTecPage() {
                   <td style={{...styles.td, fontWeight: 'bold', color: '#00C49F'}}>{log.tecnico}</td>
                   <td style={styles.td}>{log.displayDate}</td>
                   
-                  {/* COLUNA OS */}
                   <td style={{...styles.td, fontWeight: log.osVinculada ? 'bold' : 'normal', color: log.osVinculada ? '#fff' : '#666'}}>
                       {log.osVinculada || 'N/A'}
                   </td>
