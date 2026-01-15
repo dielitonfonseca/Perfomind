@@ -1,6 +1,7 @@
+// src/components/Form.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment, arrayUnion, addDoc } from 'firebase/firestore';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
 import { ScanLine, MapPin, AlertCircle, CheckCircle } from 'lucide-react';
@@ -42,7 +43,7 @@ function Form({ setFormData }) {
     const [locationStatus, setLocationStatus] = useState('idle'); // idle, loading, success, error
     const [locationMsg, setLocationMsg] = useState('Obter Localização 📍'); // Texto dinâmico do botão
 
-    // --- NOVA LÓGICA: SINCRONIZAÇÃO OFFLINE ---
+    // --- SINCRONIZAÇÃO OFFLINE ---
     const syncOfflineData = async () => {
         const offlineQueue = JSON.parse(localStorage.getItem('offlineOSQueue') || '[]');
         
@@ -116,6 +117,23 @@ function Form({ setFormData }) {
                     await setDoc(statsDocRef, initialStats);
                 });
 
+                // 4. Sincronizar Rastreamento (se houver localização no payload offline)
+                if (payload.localizacao) {
+                    const rastroData = {
+                        ...payload.localizacao,
+                        timestamp: serverTimestamp(),
+                        dataLocal: new Date().toISOString(),
+                        origem: 'sync_offline',
+                        osVinculada: numeroOS
+                    };
+                    await addDoc(collection(db, 'rastreamento', tecnicoFinal, 'historico'), rastroData);
+                    await setDoc(doc(db, 'rastreamento', tecnicoFinal), {
+                        lastLocation: rastroData,
+                        updatedAt: serverTimestamp(),
+                        nome: tecnicoFinal
+                    }, { merge: true });
+                }
+
                 successCount++;
             } catch (error) {
                 console.error(`Erro ao sincronizar OS ${item.numeroOS}:`, error);
@@ -138,7 +156,7 @@ function Form({ setFormData }) {
 
     // --- FUNÇÕES DE SUPORTE ---
 
-    // 🔴 LOCALIZAÇÃO COM TEXTO DINÂMICO 🔴
+    // 🔴 LOCALIZAÇÃO COM TEXTO DINÂMICO E USER AGENT 🔴
     const requestLocation = () => {
         if (!("geolocation" in navigator)) {
             alert("Seu navegador não suporta geolocalização.");
@@ -162,7 +180,8 @@ function Form({ setFormData }) {
                     latitude: position.coords.latitude,
                     longitude: position.coords.longitude,
                     accuracy: position.coords.accuracy,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    userAgent: navigator.userAgent // <--- CAPTURA DO DISPOSITIVO
                 });
                 setLocationStatus('success');
 
@@ -204,7 +223,7 @@ function Form({ setFormData }) {
         // eslint-disable-next-line
     }, []);
 
-    // ... (Hooks de localStorage para técnico, etc. mantidos iguais) ...
+    // Hooks de localStorage para técnico...
     useEffect(() => {
         const tecnicoSalvo = localStorage.getItem('tecnico');
         if (tecnicoSalvo) {
@@ -219,10 +238,10 @@ function Form({ setFormData }) {
     }, []);
 
     useEffect(() => {
-        if (tecnicoSelect === 'nao_achei') {
-            localStorage.setItem('tecnico', tecnicoManual);
-        } else {
-            localStorage.setItem('tecnico', tecnicoSelect);
+        const nomeFinal = tecnicoSelect === 'nao_achei' ? tecnicoManual : tecnicoSelect;
+        if(nomeFinal) {
+            localStorage.setItem('tecnico', nomeFinal);
+            localStorage.setItem('savedTechName', nomeFinal); // Salva para o App.js usar no rastreio automatico
         }
     }, [tecnicoSelect, tecnicoManual]);
 
@@ -434,6 +453,29 @@ ${obsText}
                 };
                 await setDoc(statsDocRef, initialStatsData);
             });
+
+            // 🔴 ATUALIZAR RASTREAMENTO DO TÉCNICO COM FLAG DE OS 🔴
+            try {
+                const rastroData = {
+                    ...userLocation,
+                    timestamp: serverTimestamp(),
+                    dataLocal: new Date().toISOString(),
+                    origem: 'geracao_os',   // FLAG ESPECÍFICA DE OS
+                    osVinculada: numeroOS   // NÚMERO DA OS
+                };
+                
+                // Salva no Histórico
+                await addDoc(collection(db, 'rastreamento', tecnicoFinal, 'historico'), rastroData);
+                
+                // Salva como última localização
+                await setDoc(doc(db, 'rastreamento', tecnicoFinal), {
+                    lastLocation: rastroData,
+                    updatedAt: serverTimestamp(),
+                    nome: tecnicoFinal
+                }, { merge: true });
+            } catch (errRastro) {
+                console.error("Erro ao salvar rastreamento:", errRastro);
+            }
 
             setFormData(resultadoTexto);
             console.log('Ordem de serviço e estatísticas atualizadas com sucesso!');
