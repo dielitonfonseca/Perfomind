@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { db } from './firebaseConfig';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore'; 
@@ -15,10 +15,29 @@ function App() {
   const [dashboardClickCount, setDashboardClickCount] = useState(0);
   const [lastDashboardClickTime, setLastDashboardClickTime] = useState(0);
 
-  // --- LÓGICA DE RASTREAMENTO AUTOMÁTICO (30 SEGUNDOS) ---
+  // Refs para controlar a lógica de distância/tempo sem re-renderizar
+  const lastHistoryPosition = useRef(null); // { lat, long, timestamp }
+
+  // --- FUNÇÃO AUXILIAR: CALCULAR DISTÂNCIA EM METROS (Haversine) ---
+  const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Raio da terra em km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const d = R * c; // Distância em km
+    return d * 1000; // Retorna em metros
+  };
+
+  const deg2rad = (deg) => {
+    return deg * (Math.PI/180);
+  };
+
+  // --- LÓGICA DE RASTREAMENTO INTELIGENTE ---
   useEffect(() => {
     const trackLocation = async () => {
-      // Tenta recuperar o técnico salvo
       const techName = localStorage.getItem('savedTechName') || localStorage.getItem('tecnico');
 
       if (!techName) return;
@@ -27,9 +46,9 @@ function App() {
         navigator.geolocation.getCurrentPosition(async (position) => {
           try {
             const { latitude, longitude, accuracy } = position.coords;
+            const now = Date.now();
             const timestamp = serverTimestamp();
             
-            // Flag diferente para monitoramento de rotina
             const docData = {
               latitude,
               longitude,
@@ -37,21 +56,44 @@ function App() {
               timestamp,
               dataLocal: new Date().toISOString(),
               userAgent: navigator.userAgent,
-              origem: 'monitoramento', // Flag de rotina
-              osVinculada: null        // Nenhuma OS vinculada aqui
+              origem: 'monitoramento',
+              osVinculada: null
             };
-            
-            // 1. Salva no HISTÓRICO
-            await addDoc(collection(db, 'rastreamento', techName, 'historico'), docData);
 
-            // 2. Atualiza a ÚLTIMA LOCALIZAÇÃO (Pai)
+            // 1. SEMPRE ATUALIZA A "ÚLTIMA LOCALIZAÇÃO" (Sobrescreve o documento pai)
+            // Isso garante que o mapa "Todos" esteja sempre atualizado a cada 30s.
+            // Custo de armazenamento: Zero (apenas substitui dados).
             await setDoc(doc(db, 'rastreamento', techName), {
               lastLocation: docData,
               updatedAt: timestamp,
               nome: techName
             }, { merge: true });
 
-            console.log(`[Auto 30s] Localização de ${techName} atualizada.`);
+            // 2. LÓGICA PARA SALVAR NO HISTÓRICO (Evita acúmulo)
+            let shouldSaveHistory = false;
+            const lastPos = lastHistoryPosition.current;
+
+            if (!lastPos) {
+                // Primeiro ponto da sessão: salva
+                shouldSaveHistory = true;
+            } else {
+                const distance = getDistanceFromLatLonInMeters(lastPos.latitude, lastPos.longitude, latitude, longitude);
+                const timeDiff = now - lastPos.timeMs;
+                
+                // Regra: Se moveu mais de 1km  OU passou 30 minutos ()
+                if (distance > 1000 || timeDiff > 1800000) {
+                    shouldSaveHistory = true;
+                    console.log(`[Rastreio] Moveu ${Math.round(distance)}m ou TimeOut. Salvando histórico.`);
+                } else {
+                    console.log(`[Rastreio] Parado (${Math.round(distance)}m). Atualizando apenas status ao vivo.`);
+                }
+            }
+
+            if (shouldSaveHistory) {
+                await addDoc(collection(db, 'rastreamento', techName, 'historico'), docData);
+                // Atualiza a referência local
+                lastHistoryPosition.current = { latitude, longitude, timeMs: now };
+            }
             
           } catch (error) {
             console.error("Erro ao salvar localização automática:", error);
@@ -62,13 +104,12 @@ function App() {
       }
     };
 
-    // Executa imediatamente ao carregar
+    // Executa imediatamente
     trackLocation();
 
-    // Configura o intervalo de 30 segundos (30000 ms)
+    // Intervalo de 30 segundos
     const intervalId = setInterval(trackLocation, 30000);
 
-    // Limpa o intervalo se o componente desmontar
     return () => clearInterval(intervalId);
   }, []);
 
@@ -120,7 +161,7 @@ function App() {
             } />
             <Route path="/dashboard" element={<DashboardPage showPopup={showDashboardPopup} setShowPopup={setShowDashboardPopup} />} />
             <Route path="/kpis" element={<KpisPage />} />
-            <Route path="/tec" element={<RastreamentoTecPage />} />
+            <Route path="/rastreamentotec" element={<RastreamentoTecPage />} />
           </Routes>
         </div>
       </div>
