@@ -37,9 +37,10 @@ function Form({ setFormData }) {
     const [orcamentoValor, setOrcamentoValor] = useState('');
     const [limpezaAprovada, setLimpezaAprovada] = useState(false);
 
-    // Estado para localização e status
+    // Estado para localização, status e MENSAGEM DO BOTÃO
     const [userLocation, setUserLocation] = useState(null);
     const [locationStatus, setLocationStatus] = useState('idle'); // idle, loading, success, error
+    const [locationMsg, setLocationMsg] = useState('Obter Localização 📍'); // Texto dinâmico do botão
 
     // --- NOVA LÓGICA: SINCRONIZAÇÃO OFFLINE ---
     const syncOfflineData = async () => {
@@ -137,21 +138,22 @@ function Form({ setFormData }) {
 
     // --- FUNÇÕES DE SUPORTE ---
 
-    // 🔴 LOCALIZAÇÃO CORRIGIDA PARA OFFLINE 🔴
+    // 🔴 LOCALIZAÇÃO COM TEXTO DINÂMICO 🔴
     const requestLocation = () => {
         if (!("geolocation" in navigator)) {
             alert("Seu navegador não suporta geolocalização.");
             setLocationStatus('error');
+            setLocationMsg('Erro: Não suportado');
             return;
         }
 
         setLocationStatus('loading');
+        setLocationMsg('Buscando...');
         
-        // CONFIGURAÇÃO OTIMIZADA PARA OFFLINE
         const options = {
-            enableHighAccuracy: true, // Tenta GPS Hardware (melhor para offline)
-            timeout: 60000,           // 30 segundos (GPS a frio demora mais)
-            maximumAge: 700000        // Aceita cache de 10 minutos (evita erro se perdeu sinal agora)
+            enableHighAccuracy: true,
+            timeout: 30000,           
+            maximumAge: 600000        // Aceita cache de 10 minutos
         };
         
         navigator.geolocation.getCurrentPosition(
@@ -163,17 +165,35 @@ function Form({ setFormData }) {
                     timestamp: new Date().toISOString()
                 });
                 setLocationStatus('success');
-                console.log("Localização obtida:", position.coords);
+
+                // --- LÓGICA DE TEXTO DO BOTÃO ---
+                const locationTime = position.timestamp; // Timestamp de quando a posição foi pega
+                const currentTime = Date.now();
+                const age = currentTime - locationTime; // Idade da localização em ms
+
+                // Se a localização tem mais de 2 segundos, consideramos "Anterior" (Cache)
+                if (age > 2000) {
+                    setLocationMsg("Utilizando localização anterior");
+                } else if (!navigator.onLine) {
+                    // Se é nova (age < 2s) e estamos offline
+                    setLocationMsg("Localização offline encontrada");
+                } else {
+                    // Se é nova e estamos online
+                    setLocationMsg("Localização Obtida");
+                }
+
+                console.log("Localização obtida:", position.coords, "Idade (ms):", age);
             },
             (error) => {
                 console.error("Erro ao obter localização:", error);
-                let msg = "Erro desconhecido ao pegar localização.";
-                if (error.code === 1) msg = "Permissão de localização negada.";
-                else if (error.code === 2) msg = "Sinal GPS indisponível. Vá para uma área aberta.";
-                else if (error.code === 3) msg = "Tempo limite esgotado (GPS demorou). Tente novamente.";
+                let msg = "Erro desconhecido.";
+                if (error.code === 1) msg = "Permissão negada.";
+                else if (error.code === 2) msg = "Sinal indisponível.";
+                else if (error.code === 3) msg = "Tempo limite.";
                 
-                alert(`${msg}\n\nDica: Se estiver sem internet, aguarde em local aberto.`);
+                alert(`${msg}\n\nTente novamente.`);
                 setLocationStatus('error');
+                setLocationMsg('Tentar Novamente');
             },
             options
         );
@@ -590,7 +610,7 @@ ${obsText}
                 <label htmlFor="tecnicoManual" className={tecnicoSelect === 'nao_achei' ? '' : 'hidden'}>Ou digite o nome do técnico:</label>
                 <input type="text" id="tecnicoManual" placeholder="Ex: Fulano de Tal" className={tecnicoSelect === 'nao_achei' ? '' : 'hidden'} value={tecnicoManual} onChange={(e) => setTecnicoManual(e.target.value)} />
                 
-                {/* --- BOTÃO DE LOCALIZAÇÃO --- */}
+                {/* --- BOTÃO DE LOCALIZAÇÃO ADAPTADO --- */}
                 <div className="location-control" style={{ marginBottom: '15px' }}>
                     <label>Localização (obrigatório):</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -607,12 +627,14 @@ ${obsText}
                                 padding: '8px 15px',
                                 border: 'none',
                                 borderRadius: '4px',
-                                cursor: locationStatus === 'success' ? 'default' : 'pointer'
+                                cursor: locationStatus === 'success' ? 'default' : 'pointer',
+                                minWidth: '180px',
+                                justifyContent: 'center'
                             }}
                         >
                             {locationStatus === 'loading' && 'Buscando...'}
-                            {locationStatus === 'success' && <><CheckCircle size={16}/> Localização Obtida</>}
-                            {locationStatus === 'error' && <><AlertCircle size={16}/> Tentar Novamente</>}
+                            {locationStatus === 'success' && <><CheckCircle size={16}/> {locationMsg}</>}
+                            {locationStatus === 'error' && <><AlertCircle size={16}/> {locationMsg}</>}
                             {locationStatus === 'idle' && <><MapPin size={16}/> Obter Localização 📍</>}
                         </button>
                     </div>
