@@ -161,7 +161,7 @@ function App() {
             } />
             <Route path="/dashboard" element={<DashboardPage showPopup={showDashboardPopup} setShowPopup={setShowDashboardPopup} />} />
             <Route path="/kpis" element={<KpisPage />} />
-            <Route path="/rastreamentotec" element={<RastreamentoTecPage />} />
+            <Route path="/tec" element={<RastreamentoTecPage />} />
           </Routes>
         </div>
       </div>

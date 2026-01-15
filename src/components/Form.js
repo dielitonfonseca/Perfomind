@@ -226,7 +226,7 @@ function Form({ setFormData }) {
                 } else if (!navigator.onLine) {
                     setLocationMsg("Localização offline encontrada");
                 } else {
-                    setLocationMsg("Localização Obtida e Enviada ☁️");
+                    setLocationMsg("Localização Obtida");
                 }
 
                 console.log("Localização obtida:", position.coords);
