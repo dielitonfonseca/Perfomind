@@ -3,7 +3,7 @@ import { db } from '../firebaseConfig';
 import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { saveAs } from 'file-saver';
-import { ScanLine, MapPin, AlertCircle, CheckCircle, WifiOff, RefreshCw } from 'lucide-react';
+import { ScanLine, MapPin, AlertCircle, CheckCircle } from 'lucide-react';
 import ScannerDialog from './ScannerDialog';
 import SignatureDialog from './SignatureDialog';
 
@@ -42,14 +42,11 @@ function Form({ setFormData }) {
     const [locationStatus, setLocationStatus] = useState('idle'); // idle, loading, success, error
 
     // --- NOVA LÓGICA: SINCRONIZAÇÃO OFFLINE ---
-
-    // Função que processa a fila de itens salvos offline
     const syncOfflineData = async () => {
         const offlineQueue = JSON.parse(localStorage.getItem('offlineOSQueue') || '[]');
         
         if (offlineQueue.length === 0) return;
 
-        // Notificação visual simples
         const confirmSync = window.confirm(`Internet detectada! Existem ${offlineQueue.length} OS(s) salvas offline. Deseja sincronizar agora?`);
         if (!confirmSync) return;
 
@@ -60,23 +57,14 @@ function Form({ setFormData }) {
 
         for (const item of offlineQueue) {
             try {
-                // Recupera dados brutos salvos no localStorage
                 const { 
-                    tecnicoFinal, 
-                    dateString, 
-                    targetCollectionName, 
-                    numeroOS, 
-                    payload, 
-                    // statsUpdateData não é usado diretamente pois 'increment' não serializa em JSON.
-                    // Reconstruímos a lógica de stats abaixo.
-                    valorNumerico,
-                    limpezaAprovada,
-                    tipoOS
+                    tecnicoFinal, dateString, targetCollectionName, numeroOS, payload, 
+                    valorNumerico, limpezaAprovada, tipoOS 
                 } = item;
 
                 console.log(`Sincronizando OS: ${numeroOS}...`);
 
-                // 1. Salvar estrutura de Pastas (Técnico -> Data -> Coleção)
+                // 1. Salvar estrutura de Pastas
                 const tecnicoDocRef = doc(db, 'ordensDeServico', tecnicoFinal);
                 await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true });
 
@@ -87,18 +75,16 @@ function Form({ setFormData }) {
                 const targetCollectionRef = collection(dataDocRef, targetCollectionName);
                 const osDocRef = doc(targetCollectionRef, numeroOS);
 
-                // 2. Salvar a OS (Recriando Timestamps do servidor)
+                // 2. Salvar a OS
                 await setDoc(osDocRef, {
                     ...payload,
-                    dataGeracao: serverTimestamp(), // Data real da entrada no banco
-                    sincronizadoEm: new Date().toISOString(), // Marca d'água da sincronização
+                    dataGeracao: serverTimestamp(),
+                    sincronizadoEm: new Date().toISOString(),
                     origem: "offline_sync"
                 });
 
-                // 3. Atualizar Estatísticas (Reconstruindo objetos FieldValue)
+                // 3. Atualizar Estatísticas
                 const statsDocRef = doc(db, 'technicianStats', tecnicoFinal);
-                
-                // Recria o objeto de update com 'increment' e 'arrayUnion'
                 const statsUpdateData = {
                     totalOS: increment(1),
                     lastUpdate: serverTimestamp(),
@@ -110,15 +96,12 @@ function Form({ setFormData }) {
                     statsUpdateData.orc_aprovado = increment(valorNumerico);
                     statsUpdateData.lista_orcamentos_aprovados = arrayUnion(numeroOS);
                 }
-
                 if (limpezaAprovada) {
                     statsUpdateData.limpezas_realizadas = increment(1);
                     statsUpdateData.lista_limpezas = arrayUnion(numeroOS);
                 }
 
-                // Tenta atualizar ou criar se não existir
                 await updateDoc(statsDocRef, statsUpdateData).catch(async () => {
-                    // Fallback para criar documento se não existir (sem o updateDoc)
                     const initialStats = {
                         totalOS: 1,
                         samsungOS: tipoOS === 'samsung' ? 1 : 0,
@@ -133,39 +116,28 @@ function Form({ setFormData }) {
                 });
 
                 successCount++;
-
             } catch (error) {
                 console.error(`Erro ao sincronizar OS ${item.numeroOS}:`, error);
-                newQueue.push(item); // Mantém na fila se der erro
+                newQueue.push(item);
             }
         }
 
-        // Atualiza a fila local
         localStorage.setItem('offlineOSQueue', JSON.stringify(newQueue));
         
-        if (successCount > 0) {
-            alert(`${successCount} OS(s) sincronizada(s) com sucesso! 🚀`);
-        }
-        if (newQueue.length > 0) {
-            alert(`Atenção: ${newQueue.length} OS(s) falharam na sincronização e serão tentadas novamente depois.`);
-        }
+        if (successCount > 0) alert(`${successCount} OS(s) sincronizada(s) com sucesso! 🚀`);
+        if (newQueue.length > 0) alert(`Atenção: ${newQueue.length} OS(s) falharam na sincronização.`);
     };
 
-    // Listener para detectar retorno da internet
     useEffect(() => {
         const handleOnline = () => syncOfflineData();
         window.addEventListener('online', handleOnline);
-        
-        // Verifica também ao montar o componente
-        if (navigator.onLine) {
-            syncOfflineData();
-        }
-
+        if (navigator.onLine) syncOfflineData();
         return () => window.removeEventListener('online', handleOnline);
     }, []);
 
     // --- FUNÇÕES DE SUPORTE ---
 
+    // 🔴 LOCALIZAÇÃO CORRIGIDA PARA OFFLINE 🔴
     const requestLocation = () => {
         if (!("geolocation" in navigator)) {
             alert("Seu navegador não suporta geolocalização.");
@@ -174,6 +146,13 @@ function Form({ setFormData }) {
         }
 
         setLocationStatus('loading');
+        
+        // CONFIGURAÇÃO OTIMIZADA PARA OFFLINE
+        const options = {
+            enableHighAccuracy: true, // Tenta GPS Hardware (melhor para offline)
+            timeout: 60000,           // 30 segundos (GPS a frio demora mais)
+            maximumAge: 700000        // Aceita cache de 10 minutos (evita erro se perdeu sinal agora)
+        };
         
         navigator.geolocation.getCurrentPosition(
             (position) => {
@@ -189,14 +168,14 @@ function Form({ setFormData }) {
             (error) => {
                 console.error("Erro ao obter localização:", error);
                 let msg = "Erro desconhecido ao pegar localização.";
-                if (error.code === 1) msg = "Permissão de localização negada. Por favor, permita o acesso no navegador.";
-                else if (error.code === 2) msg = "Localização indisponível. Verifique seu GPS/Conexão.";
-                else if (error.code === 3) msg = "Tempo limite esgotado ao buscar localização.";
+                if (error.code === 1) msg = "Permissão de localização negada.";
+                else if (error.code === 2) msg = "Sinal GPS indisponível. Vá para uma área aberta.";
+                else if (error.code === 3) msg = "Tempo limite esgotado (GPS demorou). Tente novamente.";
                 
-                alert(msg);
+                alert(`${msg}\n\nDica: Se estiver sem internet, aguarde em local aberto.`);
                 setLocationStatus('error');
             },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            options
         );
     };
 
@@ -205,12 +184,11 @@ function Form({ setFormData }) {
         // eslint-disable-next-line
     }, []);
 
+    // ... (Hooks de localStorage para técnico, etc. mantidos iguais) ...
     useEffect(() => {
         const tecnicoSalvo = localStorage.getItem('tecnico');
         if (tecnicoSalvo) {
-            if (
-                ['Dieliton Fonseca', 'Matheus Lindoso', 'Yago Giordanny', 'Pablo Henrique', 'Wallysson Cesar', 'Claudio Cris', 'Matheus Henrique'].includes(tecnicoSalvo)
-            ) {
+            if (['Dieliton Fonseca', 'Matheus Lindoso', 'Yago Giordanny', 'Pablo Henrique', 'Wallysson Cesar', 'Claudio Cris', 'Matheus Henrique'].includes(tecnicoSalvo)) {
                 setTecnicoSelect(tecnicoSalvo);
                 setTecnicoManual('');
             } else {
@@ -256,20 +234,13 @@ function Form({ setFormData }) {
         const { numero, cliente, tecnico, defeito, reparo, peca, ppidPecaNova, ppidPecaUsada, observacoes, tipo, orcamentoAprovado, orcamentoValor, limpezaAprovada } = data;
         const linhaDefeito = tipo === 'samsung' ? `Código de defeito: ${defeito}` : `Defeito: ${defeito}`;
         const linhaReparo = tipo === 'samsung' ? `Código de reparo: ${reparo}` : `Solicitação de peça: ${reparo}`;
-        
         const linhaPecaUsada = peca ? `Peça usada: ${peca}` : '';
         const linhaPpidNova = ppidPecaNova ? `PPID peça NOVA: ${ppidPecaNova}` : '';
         const linhaPpidUsada = ppidPecaUsada ? `PPID peça USADA: ${ppidPecaUsada}` : '';
-        
         const detalhesPecas = [linhaPecaUsada, linhaPpidNova, linhaPpidUsada].filter(Boolean).join('\n');
-
         let obsText = '';
-        if (orcamentoAprovado && orcamentoValor) {
-            obsText += `Orçamento aprovado: R$ ${orcamentoValor}\n`;
-        }
-        if (limpezaAprovada) {
-            obsText += 'Limpeza realizada\n';
-        }
+        if (orcamentoAprovado && orcamentoValor) obsText += `Orçamento aprovado: R$ ${orcamentoValor}\n`;
+        if (limpezaAprovada) obsText += 'Limpeza realizada\n';
         obsText += observacoes;
 
         return `
@@ -306,7 +277,6 @@ ${obsText}
         setLimpezaAprovada(false);
     };
 
-    // --- HANDLE SUBMIT MODIFICADO (ONLINE/OFFLINE) ---
     const handleSubmit = async (event) => {
         event.preventDefault();
 
@@ -351,7 +321,6 @@ ${obsText}
 
         const pecaFinal = isSamsung ? peca : '';
 
-        // Gera o texto para exibição (setFormData)
         const resultadoTexto = gerarTextoResultado({
             numero: numeroOS,
             cliente: clienteNome,
@@ -368,9 +337,7 @@ ${obsText}
             limpezaAprovada,
         });
 
-        
         try {
-            // Preparação dos dados
             const today = new Date();
             const weekNumber = getISOWeek(today);
             const year = today.getFullYear();
@@ -379,31 +346,22 @@ ${obsText}
             const valorNumerico = (orcamentoAprovado && orcamentoValor) ? parseFloat(orcamentoValor) : 0;
             const targetCollectionName = isSamsung ? 'Samsung' : 'Assurant';
 
-            // Payload para salvar
             const payloadDoc = {
                 numeroOS, cliente: clienteNome, tecnico: tecnicoFinal, tipoOS,
                 defeito: defeitoFinal, reparo: reparoFinal, pecaSubstituida: pecaFinal,
                 ppidPecaNova, ppidPecaUsada, observacoes,
                 semana: weekNumber, ano: year, valorOrcamento: valorNumerico, isLimpeza: limpezaAprovada,
                 dataHoraCriacao: dataHoraFormatada,
-                localizacao: userLocation, // Localização capturada
+                localizacao: userLocation, 
                 dataGeracaoLocal: new Date().toISOString()
             };
 
             // --- FLUXO OFFLINE ---
             if (!navigator.onLine) {
                 const offlineData = {
-                    tecnicoFinal,
-                    dateString,
-                    targetCollectionName,
-                    numeroOS,
-                    payload: payloadDoc,
-                    // Dados auxiliares para reconstruir stats
-                    valorNumerico,
-                    limpezaAprovada,
-                    tipoOS
+                    tecnicoFinal, dateString, targetCollectionName, numeroOS, payload: payloadDoc,
+                    valorNumerico, limpezaAprovada, tipoOS
                 };
-
                 const currentQueue = JSON.parse(localStorage.getItem('offlineOSQueue') || '[]');
                 currentQueue.push(offlineData);
                 localStorage.setItem('offlineOSQueue', JSON.stringify(currentQueue));
@@ -414,8 +372,7 @@ ${obsText}
                 return;
             }
 
-            // --- FLUXO ONLINE (PADRÃO) ---
-            
+            // --- FLUXO ONLINE ---
             const tecnicoDocRef = doc(db, 'ordensDeServico', tecnicoFinal);
             await setDoc(tecnicoDocRef, { nome: tecnicoFinal }, { merge: true });
 
@@ -426,12 +383,8 @@ ${obsText}
             const targetCollectionRef = collection(dataDocRef, targetCollectionName);
             const osDocRef = doc(targetCollectionRef, numeroOS);
 
-            await setDoc(osDocRef, {
-                ...payloadDoc,
-                dataGeracao: serverTimestamp(),
-            });
+            await setDoc(osDocRef, { ...payloadDoc, dataGeracao: serverTimestamp() });
 
-            // Stats
             const statsDocRef = doc(db, 'technicianStats', tecnicoFinal);
             const statsUpdateData = {
                 totalOS: increment(1),
@@ -439,7 +392,6 @@ ${obsText}
                 samsungOS: increment(tipoOS === 'samsung' ? 1 : 0),
                 assurantOS: increment(tipoOS === 'assurant' ? 1 : 0),
             };
-
             if (valorNumerico > 0) {
                 statsUpdateData.orc_aprovado = increment(valorNumerico);
                 statsUpdateData.lista_orcamentos_aprovados = arrayUnion(numeroOS);
@@ -475,23 +427,12 @@ ${obsText}
 
     const preencherPDF = async () => {
         let baseFileName = '';
-
         switch (tipoAparelho) {
-            case 'VD':
-                baseFileName = `/Checklist DTV_IH41_${tipoChecklist}.pdf`;
-                break;
-            case 'WSM':
-                baseFileName = `/checklist_WSM_${tipoChecklist}.pdf`;
-                break;
-            case 'REF':
-                baseFileName = `/checklist_REF_${tipoChecklist}.pdf`;
-                break;
-            case 'RAC':
-                baseFileName = `/checklist_RAC_${tipoChecklist}.pdf`;
-                break;
-            default:
-                alert('Tipo de aparelho inválido.');
-                return;
+            case 'VD': baseFileName = `/Checklist DTV_IH41_${tipoChecklist}.pdf`; break;
+            case 'WSM': baseFileName = `/checklist_WSM_${tipoChecklist}.pdf`; break;
+            case 'REF': baseFileName = `/checklist_REF_${tipoChecklist}.pdf`; break;
+            case 'RAC': baseFileName = `/checklist_RAC_${tipoChecklist}.pdf`; break;
+            default: alert('Tipo de aparelho inválido.'); return;
         }
 
         try {
@@ -518,13 +459,9 @@ ${obsText}
             let reparoFinalText = reparoManual;
             if(isSamsung) {
                 const defeitoElement = document.getElementById('defeitoSelect');
-                if (defeitoElement.selectedIndex > 0) {
-                    defeitoFinalText = defeitoElement.options[defeitoElement.selectedIndex].text;
-                }
+                if (defeitoElement.selectedIndex > 0) defeitoFinalText = defeitoElement.options[defeitoElement.selectedIndex].text;
                 const reparoElement = document.getElementById('reparoSelect');
-                if(reparoElement.selectedIndex > 0) {
-                    reparoFinalText = reparoElement.options[reparoElement.selectedIndex].text;
-                }
+                if(reparoElement.selectedIndex > 0) reparoFinalText = reparoElement.options[reparoElement.selectedIndex].text;
             }
             
             const textoObservacoes = `Observações: ${observacoes}`;
@@ -546,19 +483,11 @@ ${obsText}
                 drawText(numero, 420, height - 72);
                 drawText(dataFormatada, 450, height - 100);
                 drawText(tecnicoFinal, 120, height - 800);
-
                 drawText(textoDefeito, 70, height - 750);
                 drawText(textoReparo, 70, height - 750 - offset);
                 drawText(textoObservacoes, 70, height - 750 - (offset * 2));
 
-                if (pngImage) {
-                    page.drawImage(pngImage, {
-                        x: 390,
-                        y: height - 820,
-                        width: 165,
-                        height: 55
-                    });
-                }
+                if (pngImage) page.drawImage(pngImage, { x: 390, y: height - 820, width: 165, height: 55 });
             } else if (tipoAparelho === 'WSM') {
                 drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
                 drawText(`${cliente}`, 77, height - 125);
@@ -567,19 +496,11 @@ ${obsText}
                 drawText(`${numero}`, 590, height - 110);
                 drawText(`${dataFormatada}`, 605, height - 137);
                 drawText(`${tecnicoFinal}`, 110, height - 534);
-
                 drawText(textoDefeito, 65, height - 470);
                 drawText(textoReparo, 65, height - 470 - offset);
                 drawText(textoObservacoes, 65, height - 470 - (offset * 2));
 
-                if (pngImage) {
-                    page.drawImage(pngImage, {
-                        x: 550,
-                        y: height - 550,
-                        width: 150,
-                        height: 40
-                    });
-                }
+                if (pngImage) page.drawImage(pngImage, { x: 550, y: height - 550, width: 150, height: 40 });
             } else if (tipoAparelho === 'REF') {
                 drawText("FERNANDES COMUNICAÇÕES", 100, height - 0);
                 drawText(`${cliente}`, 87, height - 130);
@@ -588,19 +509,11 @@ ${obsText}
                 drawText(`${numero}`, 660, height - 115);
                 drawText(`${dataFormatada}`, 665, height - 147);
                 drawText(`${tecnicoFinal}`, 114, height - 538);
-
                 drawText(textoDefeito, 65, height - 465);
                 drawText(textoReparo, 65, height - 465 - offset);
                 drawText(textoObservacoes, 65, height - 465 - (offset * 2));
 
-                if (pngImage) {
-                    page.drawImage(pngImage, {
-                        x: 600,
-                        y: height - 550,
-                        width: 150,
-                        height: 40
-                    });
-                }
+                if (pngImage) page.drawImage(pngImage, { x: 600, y: height - 550, width: 150, height: 40 });
             } else if (tipoAparelho === 'RAC') {
                 drawText("FERNANDES COMUNICAÇÕES", 140, height - 0);
                 drawText(`${cliente}`, 87, height - 116);
@@ -609,19 +522,11 @@ ${obsText}
                 drawText(`${numero}`, 537, height - 105);
                 drawText(`${dataFormatada}`, 552, height - 128);
                 drawText(`${tecnicoFinal}`, 114, height - 533);
-
                 drawText(textoDefeito, 65, height - 470);
                 drawText(textoReparo, 65, height - 470 - offset);
                 drawText(textoObservacoes, 65, height - 470 - (offset * 2));
 
-                if (pngImage) {
-                    page.drawImage(pngImage, {
-                        x: 540,
-                        y: height - 550,
-                        width: 150,
-                        height: 40
-                    });
-                }
+                if (pngImage) page.drawImage(pngImage, { x: 540, y: height - 550, width: 150, height: 40 });
             }
 
             const pdfBytes = await pdfDoc.save();
@@ -636,13 +541,9 @@ ${obsText}
     };
     
     const handleScanSuccess = useCallback((decodedText) => {
-        if (scannerTarget === 'serial') {
-            setSerial(decodedText);
-        } else if (scannerTarget === 'ppidNova') {
-            setPpidPecaNova(decodedText);
-        } else if (scannerTarget === 'ppidUsada') {
-            setPpidPecaUsada(decodedText);
-        }
+        if (scannerTarget === 'serial') setSerial(decodedText);
+        else if (scannerTarget === 'ppidNova') setPpidPecaNova(decodedText);
+        else if (scannerTarget === 'ppidUsada') setPpidPecaUsada(decodedText);
         setScannerOpen(false);
     }, [scannerTarget]);
 
@@ -658,66 +559,23 @@ ${obsText}
 
     return (
         <>
-            {isScannerOpen && (
-                <ScannerDialog
-                    onScanSuccess={handleScanSuccess}
-                    onClose={() => setScannerOpen(false)}
-                />
-            )}
-            {isSignatureDialogOpen && (
-                <SignatureDialog
-                    onSave={handleSaveSignature}
-                    onClose={() => setSignatureDialogOpen(false)}
-                />
-            )}
+            {isScannerOpen && <ScannerDialog onScanSuccess={handleScanSuccess} onClose={() => setScannerOpen(false)} />}
+            {isSignatureDialogOpen && <SignatureDialog onSave={handleSaveSignature} onClose={() => setSignatureDialogOpen(false)} />}
+            
             <div className="checkbox-container">
-                <label>
-                    <input
-                        type="checkbox"
-                        id="samsungCheckbox"
-                        checked={isSamsung}
-                        onChange={() => setIsSamsung(true)}
-                    />{' '}
-                    Reparo Samsung
-                </label>
-                <label>
-                    <input
-                        type="checkbox"
-                        id="assurantCheckbox"
-                        checked={!isSamsung}
-                        onChange={() => setIsSamsung(false)}
-                    />{' '}
-                    Visita Assurant
-                </label>
+                <label><input type="checkbox" id="samsungCheckbox" checked={isSamsung} onChange={() => setIsSamsung(true)} /> Reparo Samsung</label>
+                <label><input type="checkbox" id="assurantCheckbox" checked={!isSamsung} onChange={() => setIsSamsung(false)} /> Visita Assurant</label>
             </div>
 
             <form id="osForm" onSubmit={handleSubmit}>
                 <label htmlFor="numero">Número de Ordem de Serviço:</label>
-                <input
-                    type="text"
-                    id="numero"
-                    placeholder={isSamsung ? 'Ex: 4171234567' : 'Ex: 45111729'}
-                    value={numero}
-                    onChange={(e) => setNumero(e.target.value)}
-                    required
-                />
+                <input type="text" id="numero" placeholder={isSamsung ? 'Ex: 4171234567' : 'Ex: 45111729'} value={numero} onChange={(e) => setNumero(e.target.value)} required />
 
                 <label htmlFor="cliente">Nome do cliente:</label>
-                <input
-                    type="text"
-                    id="cliente"
-                    placeholder="Ex: Fulano de tal"
-                    value={cliente}
-                    onChange={(e) => setCliente(e.target.value)}
-                    required
-                />
+                <input type="text" id="cliente" placeholder="Ex: Fulano de tal" value={cliente} onChange={(e) => setCliente(e.target.value)} required />
 
                 <label htmlFor="tecnicoSelect">Nome do técnico:</label>
-                <select
-                    id="tecnicoSelect"
-                    value={tecnicoSelect}
-                    onChange={(e) => setTecnicoSelect(e.target.value)}
-                >
+                <select id="tecnicoSelect" value={tecnicoSelect} onChange={(e) => setTecnicoSelect(e.target.value)}>
                     <option value="">Selecione um técnico</option>
                     <option value="Dieliton Fonseca">Dieliton 😎</option>
                     <option value="Matheus Lindoso">Matheus Lindoso</option>
@@ -729,20 +587,8 @@ ${obsText}
                     <option value="nao_achei">Não achei a opção certa</option>
                 </select>
 
-                <label
-                    htmlFor="tecnicoManual"
-                    className={tecnicoSelect === 'nao_achei' ? '' : 'hidden'}
-                >
-                    Ou digite o nome do técnico:
-                </label>
-                <input
-                    type="text"
-                    id="tecnicoManual"
-                    placeholder="Ex: Fulano de Tal"
-                    className={tecnicoSelect === 'nao_achei' ? '' : 'hidden'}
-                    value={tecnicoManual}
-                    onChange={(e) => setTecnicoManual(e.target.value)}
-                />
+                <label htmlFor="tecnicoManual" className={tecnicoSelect === 'nao_achei' ? '' : 'hidden'}>Ou digite o nome do técnico:</label>
+                <input type="text" id="tecnicoManual" placeholder="Ex: Fulano de Tal" className={tecnicoSelect === 'nao_achei' ? '' : 'hidden'} value={tecnicoManual} onChange={(e) => setTecnicoManual(e.target.value)} />
                 
                 {/* --- BOTÃO DE LOCALIZAÇÃO --- */}
                 <div className="location-control" style={{ marginBottom: '15px' }}>
@@ -776,11 +622,7 @@ ${obsText}
                 {isSamsung && (
                     <>
                         <label htmlFor="defeitoSelect">Código de Defeito:</label>
-                        <select
-                            id="defeitoSelect"
-                            value={defeitoSelect}
-                            onChange={(e) => setDefeitoSelect(e.target.value)}
-                        >
+                        <select id="defeitoSelect" value={defeitoSelect} onChange={(e) => setDefeitoSelect(e.target.value)}>
                                 <option value="">Selecione o defeito</option>
                                 <option value="AXP">AXP - Uso inadequado do consumidor (VD)</option>
                                 <option value="HXX">HXX - Uso inadequado do consumidor (DA)</option>
@@ -831,11 +673,7 @@ ${obsText}
                         </select>
 
                         <label htmlFor="reparoSelect">Código de Reparo:</label>
-                        <select
-                            id="reparoSelect"
-                            value={reparoSelect}
-                            onChange={(e) => setReparoSelect(e.target.value)}
-                        >
+                        <select id="reparoSelect" value={reparoSelect} onChange={(e) => setReparoSelect(e.target.value)}>
                                 <option value="">Selecione o reparo</option>
                                 <option value="X09">X09 - Orçamento recusado!</option>
                                 <option value="A04">A04 - Troca de PCB</option>
@@ -852,38 +690,18 @@ ${obsText}
                         </select>
 
                         <label htmlFor="peca">Peça substituída:</label>
-                        <input
-                            type="text"
-                            id="peca"
-                            placeholder="Ex: Placa principal"
-                            value={peca}
-                            onChange={(e) => setPeca(e.target.value)}
-                        />
+                        <input type="text" id="peca" placeholder="Ex: Placa principal" value={peca} onChange={(e) => setPeca(e.target.value)} />
                         
                         <label htmlFor="ppidPecaNova">PPID Peça NOVA:</label>
                         <div className="input-with-button">
-                            <input
-                                name="ppidPecaNova"
-                                placeholder="Escaneie o código da peça nova"
-                                onChange={(e) => setPpidPecaNova(e.target.value)}
-                                value={ppidPecaNova}
-                            />
-                            <button type="button" className="scan-button" onClick={() => openScanner('ppidNova')}>
-                                <ScanLine size={20} />
-                            </button>
+                            <input name="ppidPecaNova" placeholder="Escaneie o código da peça nova" onChange={(e) => setPpidPecaNova(e.target.value)} value={ppidPecaNova} />
+                            <button type="button" className="scan-button" onClick={() => openScanner('ppidNova')}><ScanLine size={20} /></button>
                         </div>
 
                         <label htmlFor="ppidPecaUsada">PPID Peça USADA:</label>
                         <div className="input-with-button">
-                            <input
-                                name="ppidPecaUsada"
-                                placeholder="Escaneie o código da peça usada"
-                                onChange={(e) => setPpidPecaUsada(e.target.value)}
-                                value={ppidPecaUsada}
-                            />
-                            <button type="button" className="scan-button" onClick={() => openScanner('ppidUsada')}>
-                                <ScanLine size={20} />
-                            </button>
+                            <input name="ppidPecaUsada" placeholder="Escaneie o código da peça usada" onChange={(e) => setPpidPecaUsada(e.target.value)} value={ppidPecaUsada} />
+                            <button type="button" className="scan-button" onClick={() => openScanner('ppidUsada')}><ScanLine size={20} /></button>
                         </div>
                     </>
                 )}
@@ -891,69 +709,28 @@ ${obsText}
                 {!isSamsung && (
                     <>
                         <label htmlFor="defeitoManual">Qual o defeito do aparelho?</label>
-                        <input
-                            type="text"
-                            id="defeitoManual"
-                            placeholder="Descreva o defeito"
-                            value={defeitoManual}
-                            onChange={(e) => setDefeitoManual(e.target.value)}
-                        />
+                        <input type="text" id="defeitoManual" placeholder="Descreva o defeito" value={defeitoManual} onChange={(e) => setDefeitoManual(e.target.value)} />
 
                         <label htmlFor="reparoManual">Quais as peças necessárias?</label>
-                        <input
-                            type="text"
-                            id="reparoManual"
-                            placeholder="Liste as peças"
-                            value={reparoManual}
-                            onChange={(e) => setReparoManual(e.target.value)}
-                        />
+                        <input type="text" id="reparoManual" placeholder="Liste as peças" value={reparoManual} onChange={(e) => setReparoManual(e.target.value)} />
                     </>
                 )}
                 
-                {/* MODIFICAÇÃO: Este bloco só será exibido se for Reparo Samsung */}
                 {isSamsung && (
                     <div className="checkbox-container extra-options">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    checked={orcamentoAprovado}
-                                    onChange={() => setOrcamentoAprovado(!orcamentoAprovado)}
-                                />{' '}
-                                Orçamento aprovado e pago 
-                            </label>
+                            <label><input type="checkbox" checked={orcamentoAprovado} onChange={() => setOrcamentoAprovado(!orcamentoAprovado)} /> Orçamento aprovado e pago</label>
                             {orcamentoAprovado && (
                                 <div className="valor-container">
                                     <label htmlFor="orcamentoValor">Valor (R$):</label>
-                                    <input
-                                        type="number"
-                                        id="orcamentoValor"
-                                        value={orcamentoValor}
-                                        onChange={(e) => setOrcamentoValor(e.target.value)}
-                                        onWheel={(e) => e.target.blur()} 
-                                        placeholder="Ex: 550.00"
-                                        step="0.01"
-                                    />
+                                    <input type="number" id="orcamentoValor" value={orcamentoValor} onChange={(e) => setOrcamentoValor(e.target.value)} onWheel={(e) => e.target.blur()} placeholder="Ex: 550.00" step="0.01" />
                                 </div>
                             )}
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    checked={limpezaAprovada}
-                                    onChange={() => setLimpezaAprovada(!limpezaAprovada)}
-                                />{' '}
-                                Higienização aprovada e feita
-                            </label>
+                            <label><input type="checkbox" checked={limpezaAprovada} onChange={() => setLimpezaAprovada(!limpezaAprovada)} /> Higienização aprovada e feita</label>
                     </div>
                 )}
 
                 <label htmlFor="observacoes">Observações:</label>
-                <textarea
-                    id="observacoes"
-                    rows="4"
-                    placeholder="Ex: Pagamento pendente, PPID de outras peças etc..."
-                    value={observacoes}
-                    onChange={(e) => setObservacoes(e.target.value)}
-                ></textarea>
+                <textarea id="observacoes" rows="4" placeholder="Ex: Pagamento pendente, PPID de outras peças etc..." value={observacoes} onChange={(e) => setObservacoes(e.target.value)}></textarea>
 
                 {isSamsung && (
                     <>
@@ -978,36 +755,16 @@ ${obsText}
 
                         <label htmlFor="serial">Serial:</label>
                         <div className="input-with-button">
-                            <input
-                                name="serial"
-                                placeholder="Número de Série"
-                                onChange={(e) => setSerial(e.target.value)}
-                                value={serial}
-                            />
-                            <button type="button" className="scan-button" onClick={() => openScanner('serial')}>
-                                <ScanLine size={20} />
-                            </button>
+                            <input name="serial" placeholder="Número de Série" onChange={(e) => setSerial(e.target.value)} value={serial} />
+                            <button type="button" className="scan-button" onClick={() => openScanner('serial')}><ScanLine size={20} /></button>
                         </div>
 
                         <label htmlFor="dataVisita">Data da Visita:</label>
                         <input name="dataVisita" type="date" onChange={(e) => setDataVisita(e.target.value)} value={dataVisita} />
 
                         <div className="signature-section-container">
-                                <button type="button" onClick={() => setSignatureDialogOpen(true)}>
-                                    Coletar Assinatura ✍️
-                                </button>
-                                {signature && (
-                                    <img 
-                                        src={signature} 
-                                        alt="Assinatura do cliente" 
-                                        style={{ 
-                                            border: '1px solid #e0dbdbff', 
-                                            borderRadius: '4px', 
-                                            marginTop: '10px',
-                                            width: '50%' 
-                                        }} 
-                                    />
-                                )}
+                                <button type="button" onClick={() => setSignatureDialogOpen(true)}>Coletar Assinatura ✍️</button>
+                                {signature && <img src={signature} alt="Assinatura do cliente" style={{ border: '1px solid #e0dbdbff', borderRadius: '4px', marginTop: '10px', width: '50%' }} />}
                         </div>
                         <button type="button" onClick={preencherPDF} style={{ marginTop: '10px' }}>Gerar Checklist PDF 📋</button>
                     </>
