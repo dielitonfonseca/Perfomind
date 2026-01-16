@@ -9,7 +9,8 @@ import ReportsConfigPage from './pages/ReportsConfigPage';
 import ImportRoutesPage from './pages/ImportRoutesPage';
 import MyRoutePage from './pages/MyRoutePage';
 import './App.css';
-import { Home, LayoutDashboard, Truck, Upload, BarChart3, FileText, Menu } from 'lucide-react';
+// Adicionado MapPin nas importações
+import { Home, LayoutDashboard, Truck, Upload, BarChart3, FileText, Menu, MapPin } from 'lucide-react';
 
 // Menu Inferior Dinâmico
 function BottomNav({ showEasterEgg }) {
@@ -43,6 +44,12 @@ function BottomNav({ showEasterEgg }) {
             <Truck size={20} />
             <span>Rota</span>
           </Link>
+          {/* --- NOVO ITEM: RASTREAMENTO --- */}
+          <Link to="/rastreamento" className={isActive('/rastreamento')}>
+            <MapPin size={20} />
+            <span>Rastreamento</span>
+          </Link>
+          {/* ------------------------------- */}
           <Link to="/cadastrar" className={isActive('/cadastrar')}>
             <Upload size={20} />
             <span>Importar</span>
@@ -88,7 +95,6 @@ function App() {
   return (
     <Router>
       <div className="App">
-        {/* Header Limpo */}
         <header className="App-header">
           <div className="header-center">
             <h1 onClick={handleTitleClick} style={{ cursor: 'pointer', userSelect: 'none' }}>
