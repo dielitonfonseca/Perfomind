@@ -826,7 +826,6 @@ function Dashboard({ showPopup, setShowPopup }) {
   };
 
   return (
-    // ADICIONADA CLASS 'dashboard-container' PARA CORRIGIR OVERFLOW
     <div className="output dashboard-container">
         <style>{globalStyles}</style>
         <PerformancePopup isOpen={showPopup} onClose={() => setShowPopup(false)} kpiData={kpiData} />
