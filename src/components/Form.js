@@ -340,6 +340,20 @@ function Form({ setFormData }) {
             await setDoc(dataDocRef, { data: dateString }, { merge: true });
             await setDoc(doc(collection(dataDocRef, targetCollectionName), numeroOS), { ...payloadDoc, dataGeracao: serverTimestamp() });
 
+            // =========================================================================
+            // [NOVA LÓGICA] SALVAR NO CACHE RÁPIDO PARA A PÁGINA "MINHA ROTA"
+            // =========================================================================
+            if (numeroOS && userLocation && userLocation.latitude) {
+                const gpsCacheRef = doc(db, 'gps_cache', numeroOS);
+                await setDoc(gpsCacheRef, {
+                    numeroOS: numeroOS,
+                    latitude: userLocation.latitude,
+                    longitude: userLocation.longitude,
+                    createdAt: serverTimestamp()
+                });
+            }
+            // =========================================================================
+
             const statsDocRef = doc(db, 'technicianStats', tecnicoFinal);
             const statsUpdate = {
                 totalOS: increment(1), lastUpdate: serverTimestamp(),

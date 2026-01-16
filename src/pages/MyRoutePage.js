@@ -52,11 +52,30 @@ function MyRoutePage() {
     let destination = '';
     let foundInDb = false;
 
+    // 1. Verifica se já existe lat/long no próprio objeto da rota
     if (item.latitude && item.longitude) {
         destination = `${item.latitude},${item.longitude}`;
         foundInDb = true;
     } 
     
+    // 2. [NOVO] Tenta buscar no Cache Rápido (gps_cache) pelo ID da OS
+    if (!foundInDb && osNumber) {
+        try {
+            const cacheRef = doc(db, 'gps_cache', osNumber);
+            const cacheSnap = await getDoc(cacheRef);
+            
+            if (cacheSnap.exists()) {
+                const data = cacheSnap.data();
+                if (data.latitude && data.longitude) {
+                    destination = `${data.latitude},${data.longitude}`;
+                    foundInDb = true;
+                    console.log("Localização encontrada via Cache Rápido! 🚀");
+                }
+            }
+        } catch (error) { console.warn("Erro ao buscar no cache GPS:", error); }
+    }
+
+    // 3. Fallback: Se não achou no cache, tenta buscas profundas (Historico ou Samsung)
     if (!foundInDb && osNumber) {
         try {
             const historyQuery = query(collectionGroup(db, 'historico'), where('osVinculada', '==', osNumber), limit(1));
@@ -78,9 +97,10 @@ function MyRoutePage() {
                      }
                  }
             }
-        } catch (error) { console.warn("Erro busca GPS:", error); }
+        } catch (error) { console.warn("Erro busca GPS profunda:", error); }
     }
 
+    // 4. Último recurso: Endereço
     if (!foundInDb) {
         const queryAddress = `${item.bairro || ''}, ${item.cidade || ''}, ${item.endereco || ''}`;
         alert(`⚠️ Localização GPS não encontrada.\nRedirecionando para: ${item.bairro}`);
