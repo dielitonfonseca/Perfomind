@@ -54,7 +54,7 @@ const getCityFromCoords = async (lat, lng) => {
       signal: controller.signal,
       headers: {
         // O Nominatim BLOQUEIA requisições sem User-Agent ou de scripts genéricos
-        'User-Agent': 'Perfomind-App/1.0 (dieliton.fonseca@exemplo.com)', 
+        'User-Agent': 'Perfomind-App/1.0 (dielitonskt@gmail.com)', 
         'Accept-Language': 'pt-BR' // Força o resultado em Português
       }
     });
