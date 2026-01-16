@@ -52,7 +52,8 @@
     { "code": "HLC", "label": "HLC - Compressor não funciona" },
     { "code": "HLN", "label": "HLN - Porta não abre" },
     { "code": "HA1", "label": "HA1 - Não Liga (DA)" },
-    { "code": "HG1", "label": "HG1 - Não Lava" }
+    { "code": "HG1", "label": "HG1 - Não Lava" },
+    { "code": "---", "label": "OUTRO - Descreva na observação" }
   ],
   "samsungRepairs": [
     { "code": "X09", "label": "X09 - Orçamento recusado!" },
@@ -64,6 +65,7 @@
     { "code": "A17", "label": "A17 - Substituição do sensor" },
     { "code": "X01", "label": "X01 - NDF Nenhum defeito encontrado" },
     { "code": "A15", "label": "A15 - Troca de compressor" },
-    { "code": "A20", "label": "A20 - Troca de acessório (ex. controle)" }
+    { "code": "A20", "label": "A20 - Troca de acessório (ex. controle)" },
+    { "code": "---", "label": "OUTRO - Descreva na observação" }
   ]
 }

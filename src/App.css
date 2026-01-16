@@ -1245,3 +1245,960 @@ input:checked + .slider:before { transform: translateX(22px); }
     color: #00C49F;
     font-size: 12px;
 }
+
+/* --- APP LAYOUT & MENU --- */
+.app-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 10px;
+    padding: 10px;
+    background: #333;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.app-card-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #2a2a2a;
+    padding: 15px 5px;
+    border-radius: 8px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.8em;
+    transition: transform 0.2s;
+}
+
+.app-card-link:active { transform: scale(0.95); }
+.header-link { color: #fff; text-decoration: none; display: flex; align-items: center; gap: 5px; font-weight: bold; }
+
+/* --- INPUTS & BUTTONS --- */
+.page-container { padding: 15px; color: #fff; max-width: 600px; margin: 0 auto; }
+.page-title { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 1.5em; }
+.app-textarea { width: 100%; padding: 12px; background: #222; border: 1px solid #444; color: #fff; border-radius: 8px; margin-top: 5px; resize: none; font-family: inherit; }
+.app-select { width: 100%; padding: 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 8px; font-size: 1em; }
+.btn-action { padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; }
+.btn-action.primary { background: #00C49F; color: #fff; margin-top: 10px; }
+.btn-action.danger { background: #d32f2f; color: #fff; }
+.btn-action.secondary { background: #555; color: #fff; }
+.btn-action.success { background: #4CAF50; color: #fff; margin-top: 15px; }
+.full-width { width: 100%; }
+
+/* --- ROUTE CARDS --- */
+.route-card { background: #333; border-radius: 12px; padding: 15px; margin-bottom: 15px; position: relative; border-left: 5px solid; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+.status-pendente { border-left-color: #aaa; }
+.status-concluido { border-left-color: #00C49F; opacity: 0.8; }
+.status-cancelado { border-left-color: #d32f2f; opacity: 0.7; }
+
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.os-badge { background: #444; padding: 3px 8px; border-radius: 4px; font-size: 0.8em; font-family: monospace; }
+.turno-badge { background: #555; padding: 3px 8px; border-radius: 4px; font-size: 0.8em; text-transform: uppercase; }
+.client-name { margin: 5px 0; font-size: 1.1em; color: #fff; }
+.address-text { color: #ccc; font-size: 0.9em; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+.model-info { display: flex; gap: 10px; font-size: 0.85em; color: #aaa; margin-bottom: 10px; }
+.tag-garantia.OW { color: #ff9800; font-weight: bold; }
+.tag-garantia.LP { color: #4CAF50; font-weight: bold; }
+.pecas-mini-list { background: #222; padding: 5px; border-radius: 4px; font-size: 0.8em; color: #00C49F; margin-bottom: 10px; }
+
+.card-actions { display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #444; padding-top: 10px; }
+.btn-icon { background: transparent; border: 1px solid; border-radius: 20px; padding: 5px 12px; font-size: 0.8em; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.btn-icon.danger { border-color: #d32f2f; color: #d32f2f; }
+.btn-icon.map { border-color: #2196F3; color: #2196F3; }
+
+/* --- MODAL --- */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal-content { background: #222; padding: 25px; border-radius: 15px; width: 90%; max-width: 350px; text-align: center; border: 1px solid #444; }
+.modal-subtitle { color: #00C49F; margin-bottom: 15px; font-weight: bold; }
+.modal-buttons { display: flex; gap: 10px; margin-top: 15px; justify-content: center; }
+
+/* --- PREVIEW IMPORT --- */
+.preview-item { background: #444; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 0.9em; }
+.preview-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.pecas-tag { display: block; margin-top: 4px; color: #ffeb3b; }
+
+/* --- BOTTOM NAVIGATION --- */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background: #1e1e1e;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 1px solid #333;
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #888;
+    text-decoration: none;
+    font-size: 0.7em;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    transition: 0.2s;
+}
+
+.nav-item.active {
+    color: #00C49F;
+}
+
+.nav-item.map-item {
+    color: #FFC107; /* Cor destaque para o mapa secreto */
+}
+
+/* --- HEADER UPDATE --- */
+.App-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 15px;
+    height: 60px;
+    background: #222;
+}
+.header-right { display: flex; gap: 15px; }
+.header-link { color: #fff; text-decoration: none; font-weight: bold; font-size: 0.9em; }
+
+/* --- MODERN BUTTONS & INPUTS --- */
+.app-input, .app-select {
+    width: 100%; padding: 12px; background: #333; color: #fff; 
+    border: 1px solid #555; border-radius: 8px; font-size: 1rem;
+}
+.mt-2 { margin-top: 10px; }
+.mt-3 { margin-top: 15px; }
+.mt-4 { margin-top: 20px; }
+
+.btn-modern {
+    padding: 12px; border: none; border-radius: 8px; font-weight: bold; 
+    cursor: pointer; font-size: 1rem; transition: transform 0.1s;
+}
+.btn-modern:active { transform: scale(0.98); }
+.btn-modern.primary { background: #00C49F; color: #fff; }
+.btn-modern.success { background: #4CAF50; color: #fff; }
+.btn-modern.danger { background: #d32f2f; color: #fff; }
+.btn-modern.secondary { background: #555; color: #fff; }
+
+/* --- EXISTING ROUTES LIST --- */
+.route-list-item {
+    background: #333; padding: 10px; border-radius: 8px; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.route-info { display: flex; flex-direction: column; gap: 2px; font-size: 0.85em; }
+.route-date { color: #fff; display: flex; align-items: center; gap: 5px; font-weight: bold; }
+.route-tech { color: #aaa; }
+
+/* --- COOL CARDS (Mobile First) --- */
+.cool-card {
+    background: #252525;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    position: relative;
+    border: 2px solid transparent; /* Borda base */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
+}
+
+/* Bordas coloridas por status */
+.cool-card.border-pendente { border-color: #444; }
+.cool-card.border-concluido { border-color: #00C49F; opacity: 0.7; }
+.cool-card.border-cancelado { border-color: #d32f2f; opacity: 0.7; }
+
+.cool-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.os-pill { background: #333; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: #ccc; }
+.turno-pill { background: #444; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; text-transform: uppercase; color: #fff; }
+
+.icon-status.concluido { color: #00C49F; }
+.icon-status.cancelado { color: #d32f2f; }
+.icon-status.pendente { color: #fff; }
+
+.client-name-large { margin: 5px 0; font-size: 1.2rem; color: #fff; }
+.address-detail { color: #bbb; font-size: 0.95rem; margin-bottom: 10px; }
+
+.meta-tags { display: flex; gap: 8px; font-size: 0.8rem; }
+.model-tag { background: #333; padding: 2px 6px; border-radius: 4px; color: #aaa; }
+.garantia-tag.OW { color: #ff9800; font-weight: bold; }
+.garantia-tag.LP { color: #4CAF50; font-weight: bold; }
+
+.cool-card-footer {
+    border-top: 1px solid #333;
+    padding-top: 12px;
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-go-location {
+    background: #00C49F;
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,196,159,0.4);
+}
+
+.btn-cancel {
+    background: transparent;
+    color: #d32f2f;
+    border: 1px solid #d32f2f;
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+/* --- APP GLOBAL --- */
+body { background-color: #121212; color: #fff; margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+.App-header { display: flex; justify-content: center; align-items: center; height: 60px; background: #1e1e1e; border-bottom: 1px solid #333; }
+
+/* --- BOTTOM NAV --- */
+.bottom-nav {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 65px;
+    background: #1e1e1e; border-top: 1px solid #333;
+    display: flex; justify-content: space-around; align-items: center;
+    z-index: 999; padding-bottom: env(safe-area-inset-bottom);
+}
+.nav-item {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #777; text-decoration: none; font-size: 0.7rem; gap: 4px; width: 100%; height: 100%;
+}
+.nav-item.active { color: #00C49F; }
+
+/* --- CARDS & BUTTONS --- */
+.cool-card {
+    background: #252525; border-radius: 16px; padding: 16px; margin-bottom: 16px;
+    border: 1px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.visit-date-header {
+    background: #333; color: #aaa; font-size: 0.75rem; padding: 4px 8px;
+    border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px;
+}
+.cool-card-footer-grid {
+    display: flex; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #333;
+    justify-content: flex-end; /* Botões à direita */
+}
+
+/* NOVOS BOTÕES PILL STYLE */
+.btn-pill {
+    padding: 8px 16px; border-radius: 50px; border: none; font-weight: 600; font-size: 0.85rem;
+    display: flex; align-items: center; gap: 6px; cursor: pointer; transition: 0.2s;
+}
+.btn-pill:active { transform: scale(0.95); }
+
+.btn-go { background: #00C49F; color: #fff; box-shadow: 0 4px 10px rgba(0, 196, 159, 0.3); }
+.btn-finish { background: #2196F3; color: #fff; }
+.btn-cancel { background: transparent; border: 1px solid #d32f2f; color: #d32f2f; padding: 6px 14px; }
+
+/* --- PREVIEW IMPORT --- */
+.preview-container { background: #1e1e1e; padding: 15px; border-radius: 12px; border: 1px dashed #444; }
+
+/* --- INPUTS --- */
+.app-input, .app-select, .app-textarea {
+    background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 8px; width: 100%; box-sizing: border-box;
+}
+.file-upload-wrapper {
+    background: #2a2a2a; border: 2px dashed #444; padding: 20px; text-align: center; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+
+/* --- BOTÕES GERAIS (Alinhamento Central) --- */
+button, .btn-pill, .btn-modern, .btn-icon, .btn-action, .app-card-link {
+    display: flex;
+    justify-content: center; /* Centraliza horizontalmente */
+    align-items: center;     /* Centraliza verticalmente */
+    text-align: center;
+}
+
+/* --- ESTILO DE BOTÕES PILL (Atualizado) --- */
+.btn-pill {
+    padding: 8px 16px; 
+    border-radius: 50px; 
+    border: none; 
+    font-weight: 600; 
+    font-size: 0.85rem;
+    cursor: pointer; 
+    transition: 0.2s;
+    gap: 6px; /* Espaço entre ícone e texto */
+}
+.btn-pill:active { transform: scale(0.95); }
+
+/* --- CORES DE BOTÕES --- */
+.btn-go { background: #00C49F; color: #fff; box-shadow: 0 4px 10px rgba(0, 196, 159, 0.3); }
+.btn-finish { background: #2196F3; color: #fff; }
+
+/* Botão Cancelar/Excluir PREENCHIDO (Vermelho Sólido) */
+.btn-cancel, .btn-modern.danger, .btn-icon.danger {
+    background-color: #d32f2f !important; /* Vermelho Sólido */
+    color: #fff !important;              /* Texto Branco */
+    border: none !important;             /* Sem borda */
+}
+.btn-cancel {
+    padding: 6px 14px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+}
+
+/* --- MY ROUTE PAGE SPACING --- */
+.filter-header {
+    margin-bottom: 20px; /* Distância entre o seletor e os cards */
+}
+.tech-filter {
+    margin-top: 10px;    /* Distância do título */
+}
+
+/* --- OUTROS AJUSTES --- */
+.map-item { color: #FFD700 !important; }
+
+/* src/App.css */
+
+/* ... (Keep your existing styles) ... */
+
+/* --- BUTTONS --- */
+.btn-pill {
+    padding: 8px 16px; 
+    border-radius: 50px; 
+    border: none; 
+    font-weight: 600; 
+    font-size: 0.85rem;
+    cursor: pointer; 
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease; /* Added transition */
+    gap: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.btn-pill:active { transform: scale(0.95); }
+
+/* Update btn-cancel to match transitions */
+.btn-cancel {
+    background-color: transparent; 
+    color: #d32f2f;
+    border: 1px solid #d32f2f;
+    padding: 6px 14px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease; /* Added transition */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-cancel:hover {
+    background-color: #ffebee; /* Light red background on hover */
+}
+
+.btn-cancel:active {
+    transform: scale(0.95); /* Click effect */
+}
+
+/* Filled Danger Button (for Modal or Import Page) */
+.btn-modern.danger, .btn-icon.danger {
+    background-color: #d32f2f !important;
+    color: #fff !important;
+    border: none !important;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.btn-modern.danger:active, .btn-icon.danger:active {
+    transform: scale(0.95);
+}
+
+/* ... (Rest of your styles) ... *//* --- CARD HEADER & TURNO CENTRALIZADO --- */
+.cool-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative; /* Necessário para o absolute do turno */
+    margin-bottom: 12px;
+    min-height: 28px; /* Garante altura para o pill */
+}
+
+.turno-pill {
+    background: #444;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: #fff;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    
+    /* Centralização Absoluta */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    top: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    z-index: 2;
+}
+
+/* Ajuste para evitar colisão em telas muito pequenas */
+.os-pill {
+    max-width: 35%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    z-index: 1;
+}
+
+/* --- TAT & DATA BADGES --- */
+.meta-info-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.tat-badge {
+    background: #FF5722; /* Laranja forte */
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: bold;
+}
+
+.date-badge {
+    background: #333;
+    color: #ccc;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid #444;
+}
+
+/* --- NOVO HEADER DO CARD --- */
+.cool-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start; /* Alinha ao topo para badges multiplos */
+    position: relative;
+    margin-bottom: 12px;
+    min-height: 28px;
+}
+
+/* Área Esquerda: Onde fica o TAT e DATA */
+.header-left-meta {
+    display: flex;
+    flex-direction: column; /* Empilha TAT e Data se tiverem pouco espaço, ou mude para row */
+    gap: 5px;
+    align-items: flex-start;
+    max-width: 40%;
+}
+
+/* Área Direita: OS e Icone */
+.header-right-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1;
+}
+
+.os-text-small {
+    font-family: monospace;
+    font-size: 0.8em;
+    color: #888;
+}
+
+/* Badge do TAT (Laranja) */
+.tat-badge {
+    background: #FF5722;
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Badge da Data */
+.date-badge {
+    background: #444;
+    color: #ccc;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Turno Centralizado (Mantido) */
+.turno-pill {
+    background: #333;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: #fff;
+    font-weight: bold;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+    white-space: nowrap;
+    z-index: 0;
+}
+
+/* --- HEADER DO CARD (Atualizado) --- */
+.cool-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* Centraliza verticalmente */
+    position: relative;
+    margin-bottom: 12px;
+    min-height: 28px;
+}
+
+/* Esquerda: Data */
+.header-left-meta {
+    display: flex;
+    align-items: center;
+    max-width: 30%;
+}
+
+/* Direita: TAT | OS | Status */
+.header-right-status {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Espaço entre TAT, OS e Ícone */
+    z-index: 1;
+}
+
+/* Badge do TAT (Laranja) */
+.tat-badge {
+    background: #FF5722;
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+/* Badge da Data */
+.date-badge {
+    background: #333;
+    color: #ccc;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid #444;
+}
+
+/* Turno (Centralizado Absoluto) */
+.turno-pill {
+    background: #444;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: #fff;
+    font-weight: bold;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+    white-space: nowrap;
+    z-index: 0;
+}
+
+.os-text-small {
+    font-family: monospace;
+    font-size: 0.85em;
+    color: #888;
+}
+
+/* --- HEADER DO CARD (LAYOUT NOVO) --- */
+.cool-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start; /* Alinha topo para permitir o empilhamento à esquerda */
+    position: relative;
+    margin-bottom: 12px;
+    min-height: 32px; /* Altura mínima garantida */
+}
+
+/* Esquerda: Empilhado (OS + Data) */
+.header-left-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+    max-width: 45%;
+    z-index: 1;
+}
+
+/* Estilo Destacado da OS */
+.os-text-highlight {
+    font-family: monospace;
+    font-size: 1em;
+    font-weight: bold;
+    color: #fff;
+    background: #333;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border-left: 3px solid #00C49F; /* Detalhe visual */
+}
+
+/* Badge de Data Pequeno (abaixo da OS) */
+.date-badge-small {
+    color: #aaa;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 2px;
+}
+
+/* Direita: Apenas TAT */
+.header-right-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1;
+    height: 100%;
+}
+
+/* Badge do TAT (Laranja) */
+.tat-badge {
+    background: #FF5722;
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Turno (Centralizado Absoluto) */
+.turno-pill {
+    background: #444;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: #fff;
+    font-weight: bold;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+    white-space: nowrap;
+    z-index: 0;
+    border: 1px solid #555;
+}
+/* --- HEADER DO CARD (LAYOUT ATUALIZADO) --- */
+.cool-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative;
+    margin-bottom: 12px;
+    min-height: 32px;
+}
+
+/* Coluna da Esquerda */
+.header-left-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+    max-width: 45%;
+    z-index: 1;
+}
+
+/* DATA: Estilo "Badge Retangular" (Destaque) */
+.date-main-badge {
+    background: #d32f2f; /* Fundo Vermelho/Escuro conforme solicitado */
+    color: #fff;
+    font-size: 0.85rem;
+    padding: 3px 8px;
+    border-radius: 4px; /* Retangular com cantos levemente arredondados */
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* OS: Texto Simples (Abaixo da data) */
+.os-subtext {
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #aaa; /* Cor mais discreta */
+    letter-spacing: 0.5px;
+    margin-left: 2px;
+}
+
+/* Direita: Apenas TAT */
+.header-right-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1;
+    height: 100%;
+}
+
+/* Badge do TAT (Laranja) */
+.tat-badge {
+    background: #FF5722;
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+/* Turno (Centralizado) */
+.turno-pill {
+    background: #444;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: #fff;
+    font-weight: bold;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+    white-space: nowrap;
+    z-index: 0;
+    border: 1px solid #555;
+}
+/* --- HEADER DO CARD (LAYOUT ATUALIZADO) --- */
+.cool-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative;
+    margin-bottom: 12px;
+    min-height: 32px;
+}
+
+/* Esquerda: Empilhado (Data em cima, OS embaixo) */
+.header-left-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+    max-width: 45%;
+    z-index: 1;
+}
+
+/* DATA: Estilo "Badge Retangular" (Destaque Vermelho) */
+.date-main-badge {
+    background: #d32f2f; /* Fundo Vermelho */
+    color: #fff;
+    font-size: 0.85rem;
+    padding: 3px 8px;
+    border-radius: 4px; 
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* OS: Texto Simples (Abaixo da data) */
+.os-subtext {
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #ccc; 
+    letter-spacing: 0.5px;
+    margin-left: 2px;
+}
+
+/* Direita: Apenas TAT */
+.header-right-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1;
+    height: 100%;
+}
+
+/* Badge do TAT (Laranja) */
+.tat-badge {
+    background: #FF5722;
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+/* Turno (Centralizado) */
+.turno-pill {
+    background: #444;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: #fff;
+    font-weight: bold;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+    white-space: nowrap;
+    z-index: 0;
+    border: 1px solid #555;
+}
+
+/* --- FORM REDESIGN HELPERS --- */
+.label-modern {
+    display: block;
+    color: #ccc;
+    font-size: 0.85rem;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.toggle-option:active {
+    transform: scale(0.98);
+}
+
+.active-assurant {
+    background: #2196F3 !important;
+}
+
+.input-group button.btn-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 8px;
+    width: 40px;
+    cursor: pointer;
+}
+
+/* --- BOTÕES TOGGLE MODERNOS (Igual Samsung/Assurant) --- */
+.toggle-btn {
+    flex: 1;
+    text-align: center;
+    padding: 12px 5px;
+    background: #333;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #aaa;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid transparent;
+}
+
+.toggle-btn:active {
+    transform: scale(0.98);
+}
+
+/* Estados Ativos */
+.toggle-btn.active-green {
+    background: #00C49F;
+    color: #fff;
+    border-color: #00C49F;
+    box-shadow: 0 4px 10px rgba(0, 196, 159, 0.2);
+}
+
+.toggle-btn.active-blue {
+    background: #2196F3;
+    color: #fff;
+    border-color: #2196F3;
+    box-shadow: 0 4px 10px rgba(33, 150, 243, 0.2);
+}
+
+/* Seleção de Tipo Pequeno (VD, WSM...) */
+.toggle-small {
+    background: #333;
+    padding: 10px 0;
+    text-align: center;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    color: #888;
+    transition: 0.2s;
+    border: 1px solid #444;
+}
+
+.toggle-small.active-teal {
+    background: #00C49F;
+    color: #fff;
+    border-color: #00C49F;
+}
+
+/* Botão Secundário (Cinza Escuro) */
+.btn-secondary {
+    background: #444;
+    color: #ccc;
+    border: 1px solid #555;
+}
+.btn-secondary:active {
+    background: #555;
+}
+
+/* Animação suave para input condicional */
+.input-group-animation {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Área de Resultado */
+.result-box:focus {
+    outline: none;
+    border-color: #00C49F !important;
+}

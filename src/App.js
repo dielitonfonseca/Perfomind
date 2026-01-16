@@ -1,224 +1,124 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { db } from './firebaseConfig';
-import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore'; 
-import './App.css';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Route, Routes, Link, useLocation } from 'react-router-dom';
 import Form from './components/Form';
 import Output from './components/Output';
-import DashboardPage from './pages/DashboardPage';
 import KpisPage from './pages/KpisPage';
+import DashboardPage from './pages/DashboardPage';
 import RastreamentoTecPage from './pages/RastreamentoTecPage';
 import ReportsConfigPage from './pages/ReportsConfigPage';
+import ImportRoutesPage from './pages/ImportRoutesPage';
+import MyRoutePage from './pages/MyRoutePage';
+import './App.css';
+import { Home, LayoutDashboard, Truck, Upload, BarChart3, FileText, Menu } from 'lucide-react';
+
+// Menu Inferior Dinâmico
+function BottomNav({ showEasterEgg }) {
+  const location = useLocation();
+  const isActive = (path) => location.pathname === path ? 'nav-item active' : 'nav-item';
+
+  return (
+    <nav className="bottom-nav">
+      {/* MODO NORMAL: Início, Rota, Dash */}
+      {!showEasterEgg && (
+        <>
+          <Link to="/" className={isActive('/')}>
+            <Home size={22} />
+            <span>Início</span>
+          </Link>
+          <Link to="/minha-rota" className={isActive('/minha-rota')}>
+            <Truck size={22} />
+            <span>Rota</span>
+          </Link>
+          <Link to="/dashboard" className={isActive('/dashboard')}>
+            <LayoutDashboard size={22} />
+            <span>Dash</span>
+          </Link>
+        </>
+      )}
+
+      {/* MODO EASTER EGG (Completo) */}
+      {showEasterEgg && (
+        <>
+           <Link to="/minha-rota" className={isActive('/minha-rota')}>
+            <Truck size={20} />
+            <span>Rota</span>
+          </Link>
+          <Link to="/cadastrar" className={isActive('/cadastrar')}>
+            <Upload size={20} />
+            <span>Importar</span>
+          </Link>
+          <Link to="/kpis" className={isActive('/kpis')}>
+            <BarChart3 size={20} />
+            <span>KPIs</span>
+          </Link>
+          <Link to="/" className={isActive('/')}>
+            <Home size={20} />
+            <span>Início</span>
+          </Link>
+          <Link to="/dashboard" className={isActive('/dashboard')}>
+            <LayoutDashboard size={20} />
+            <span>Dash</span>
+          </Link>
+          <Link to="/config" className={isActive('/config')}>
+            <FileText size={20} />
+            <span>Relatório</span>
+          </Link>
+        </>
+      )}
+    </nav>
+  );
+}
 
 function App() {
   const [formData, setFormData] = useState(null);
-  const [showDashboardPopup, setShowDashboardPopup] = useState(false);
-  const [dashboardClickCount, setDashboardClickCount] = useState(0);
-  const [lastDashboardClickTime, setLastDashboardClickTime] = useState(0);
+  const [clickCount, setClickCount] = useState(0);
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
 
-  // Refs para controlar a lógica de distância/tempo sem re-renderizar
-  const lastHistoryPosition = useRef(null); // { lat, long, timestamp }
-
-  // --- FUNÇÃO AUXILIAR: CALCULAR DISTÂNCIA EM METROS (Haversine) ---
-  const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Raio da terra em km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    const d = R * c; // Distância em km
-    return d * 1000; // Retorna em metros
+  // Lógica de 3 cliques
+  const handleTitleClick = () => {
+    const newCount = clickCount + 1;
+    setClickCount(newCount);
+    if (newCount === 3) {
+      setShowEasterEgg(prev => !prev);
+      setClickCount(0);
+      alert(!showEasterEgg ? "Modo Avançado Ativado 🔓" : "Modo Simplificado 🔒");
+    }
   };
-
-  const deg2rad = (deg) => {
-    return deg * (Math.PI/180);
-  };
-
-  // --- NOVA FUNÇÃO OTIMIZADA: OBTER CIDADE (NOMINATIM) ---
-const getCityFromCoords = async (lat, lng) => {
-  if (!lat || !lng) return 'Local não ident.';
-
-  try {
-    // 1. Controller para Timeout (Mantido 5s, 6s é bom)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    // 2. URL com parâmetros extras para precisão
-    // zoom=14 é ideal para cidade/bairro. 10 é mais amplo, 18 é rua.
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`;
-
-    // 3. FETCH COM CABEÇALHOS OBRIGATÓRIOS
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        // O Nominatim BLOQUEIA requisições sem User-Agent ou de scripts genéricos
-        'User-Agent': 'Perfomind-App/1.0 (dielitonskt@gmail.com)', 
-        'Accept-Language': 'pt-BR' // Força o resultado em Português
-      }
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // 4. HIERARQUIA DE RETORNO ROBUSTA (O "Pulo do Gato")
-    // O OSM varia muito como classifica o local. Essa lista cobre 99% dos casos no Brasil.
-    if (data.address) {
-      return data.address.city || 
-             data.address.town || 
-             data.address.municipality || 
-             data.address.village || 
-             data.address.hamlet || 
-             data.address.suburb || 
-             data.address.county || 
-             data.address.state_district ||
-             'Local s/ nome';
-    }
-
-    return 'Desc. (Mapa)';
-
-  } catch (error) {
-    // Se for erro de AbortError (Timeout), avisa diferente
-    if (error.name === 'AbortError') {
-        console.warn("Timeout ao buscar cidade.");
-        return 'Sem resposta';
-    }
-    console.warn("Erro API Mapa:", error); 
-    return 'Erro API';
-  }
-};
-  // --- LÓGICA DE RASTREAMENTO INTELIGENTE ---
-  useEffect(() => {
-    const trackLocation = async () => {
-      const techName = localStorage.getItem('savedTechName') || localStorage.getItem('tecnico');
-
-      if (!techName) return;
-
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(async (position) => {
-          try {
-            const { latitude, longitude, accuracy } = position.coords;
-            const now = Date.now();
-            const timestamp = serverTimestamp();
-
-            // 🔥 BUSCA A CIDADE ANTES DE SALVAR 🔥
-            const city = await getCityFromCoords(latitude, longitude);
-            
-            const docData = {
-              latitude,
-              longitude,
-              accuracy,
-              city, // <--- CAMPO NOVO
-              timestamp,
-              dataLocal: new Date().toISOString(),
-              userAgent: navigator.userAgent,
-              origem: 'monitoramento',
-              osVinculada: null
-            };
-
-            // 1. SEMPRE ATUALIZA A "ÚLTIMA LOCALIZAÇÃO" (Sobrescreve o documento pai)
-            await setDoc(doc(db, 'rastreamento', techName), {
-              lastLocation: docData,
-              updatedAt: timestamp,
-              nome: techName
-            }, { merge: true });
-
-            // 2. LÓGICA PARA SALVAR NO HISTÓRICO (Evita acúmulo)
-            let shouldSaveHistory = false;
-            const lastPos = lastHistoryPosition.current;
-
-            if (!lastPos) {
-                shouldSaveHistory = true;
-            } else {
-                const distance = getDistanceFromLatLonInMeters(lastPos.latitude, lastPos.longitude, latitude, longitude);
-                const timeDiff = now - lastPos.timeMs;
-                
-                // Regra: Se moveu mais de 1km OU passou 30 minutos
-                if (distance > 1000 || timeDiff > 1800000) {
-                    shouldSaveHistory = true;
-                    console.log(`[Rastreio] Moveu ${Math.round(distance)}m ou TimeOut. Salvando histórico.`);
-                } else {
-                    console.log(`[Rastreio] Parado (${Math.round(distance)}m). Atualizando apenas status ao vivo.`);
-                }
-            }
-
-            if (shouldSaveHistory) {
-                await addDoc(collection(db, 'rastreamento', techName, 'historico'), docData);
-                lastHistoryPosition.current = { latitude, longitude, timeMs: now };
-            }
-            
-          } catch (error) {
-            console.error("Erro ao salvar localização automática:", error);
-          }
-        }, (error) => {
-          console.warn("Erro geo (auto):", error);
-        }, { enableHighAccuracy: true, timeout: 10000 });
-      }
-    };
-
-    trackLocation();
-    const intervalId = setInterval(trackLocation, 30000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  const handleDashboardClick = () => {
-    const now = Date.now();
-    if (now - lastDashboardClickTime < 5000) {
-      const newCount = dashboardClickCount + 1;
-      setDashboardClickCount(newCount);
-      if (newCount === 3) {
-        setShowDashboardPopup(true);
-        setDashboardClickCount(0);
-      }
-    } else {
-      setDashboardClickCount(1);
-    }
-    setLastDashboardClickTime(now);
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (Date.now() - lastDashboardClickTime > 5000) {
-        setDashboardClickCount(0);
-      }
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [lastDashboardClickTime]);
-
 
   return (
     <Router>
       <div className="App">
-        <header className="app-header">
-          <h1 className="app-title">Perfomind</h1>
-          <nav className="main-nav">
-            <ul>
-              <li><Link to="/">Início</Link></li>
-              <li><Link to="/dashboard" onClick={handleDashboardClick}>Dashboard</Link></li>
-            </ul>
-          </nav>
+        {/* Header Limpo */}
+        <header className="App-header">
+          <div className="header-center">
+            <h1 onClick={handleTitleClick} style={{ cursor: 'pointer', userSelect: 'none' }}>
+              Perfomind 🚀
+            </h1>
+          </div>
         </header>
 
-        <div className="main-content">
+        <main className="App-main" style={{ paddingBottom: '80px' }}>
           <Routes>
             <Route path="/" element={
-              <>
-                <Form setFormData={setFormData} />
-                {formData && <Output data={formData} />}
-              </>
+              <div className="content-container">
+                <div className="form-section">
+                  <Form setFormData={setFormData} />
+                </div>
+                <div className="output-section">
+                  <Output data={formData} />
+                </div>
+              </div>
             } />
-            <Route path="/dashboard" element={<DashboardPage showPopup={showDashboardPopup} setShowPopup={setShowDashboardPopup} />} />
             <Route path="/kpis" element={<KpisPage />} />
-            <Route path="/tec" element={<RastreamentoTecPage />} />
-            <Route path="/relatorio" element={<ReportsConfigPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/rastreamento" element={<RastreamentoTecPage />} />
+            <Route path="/config" element={<ReportsConfigPage />} />
+            <Route path="/cadastrar" element={<ImportRoutesPage />} />
+            <Route path="/minha-rota" element={<MyRoutePage />} />
           </Routes>
-        </div>
+        </main>
+        
+        <BottomNav showEasterEgg={showEasterEgg} />
       </div>
     </Router>
   );
