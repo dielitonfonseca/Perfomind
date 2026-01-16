@@ -142,7 +142,7 @@ function ImportRoutesPage() {
       <div className="card-input">
         <label className="label-modern"><User size={16}/> Selecione o Técnico:</label>
         <select className="app-select" value={selectedTech} onChange={e => setSelectedTech(e.target.value)}>
-            <option value="">-- Automático / Detectar do Texto --</option>
+            <option value="">-- -- --</option>
             {formOptions.technicians.map(t => <option key={t} value={t}>{t}</option>)}
             <option value="Outro">Outro...</option>
         </select>
