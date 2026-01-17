@@ -71,7 +71,10 @@ const ScannerDialog = ({ onScanSuccess, onClose }) => {
             {
                 fps: 10,
                 qrbox: { width: 250, height: 250 },
-                facingMode: "environment",
+                // CORREÇÃO AQUI: facingMode movido para dentro de videoConstraints
+                videoConstraints: {
+                    facingMode: "environment"
+                },
                 showOpenFileButton: false,
             },
             false
