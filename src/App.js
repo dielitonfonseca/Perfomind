@@ -8,9 +8,10 @@ import RastreamentoTecPage from './pages/RastreamentoTecPage';
 import ReportsConfigPage from './pages/ReportsConfigPage';
 import ImportRoutesPage from './pages/ImportRoutesPage';
 import MyRoutePage from './pages/MyRoutePage';
+import PartsReportPage from './pages/PartsReportPage'; // Importação da nova página
 import './App.css';
-// Adicionado MapPin nas importações
-import { Home, LayoutDashboard, Truck, Upload, BarChart3, FileText, Menu, MapPin } from 'lucide-react';
+// Adicionado Wrench nas importações para o ícone de Peças
+import { Home, LayoutDashboard, Truck, Upload, BarChart3, FileText, Menu, MapPin, Wrench } from 'lucide-react';
 
 // Menu Inferior Dinâmico
 function BottomNav({ showEasterEgg }) {
@@ -44,12 +45,19 @@ function BottomNav({ showEasterEgg }) {
             <Truck size={20} />
             <span>Rota</span>
           </Link>
-          {/* --- NOVO ITEM: RASTREAMENTO --- */}
+          {/* --- ITEM: RASTREAMENTO --- */}
           <Link to="/rastreamento" className={isActive('/rastreamento')}>
             <MapPin size={20} />
             <span>Rastreamento</span>
           </Link>
-          {/* ------------------------------- */}
+          
+          {/* --- NOVO ITEM: RELATÓRIO DE PEÇAS --- */}
+          <Link to="/relatorio-pecas" className={isActive('/relatorio-pecas')}>
+            <Wrench size={20} />
+            <span>Peças</span>
+          </Link>
+          {/* ----------------------------------- */}
+
           <Link to="/cadastrar" className={isActive('/cadastrar')}>
             <Upload size={20} />
             <span>Importar</span>
@@ -121,6 +129,7 @@ function App() {
             <Route path="/config" element={<ReportsConfigPage />} />
             <Route path="/cadastrar" element={<ImportRoutesPage />} />
             <Route path="/minha-rota" element={<MyRoutePage />} />
+            <Route path="/relatorio-pecas" element={<PartsReportPage />} />
           </Routes>
         </main>
         
