@@ -3,9 +3,13 @@ import { processPartsData } from '../utils/partsLogic';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { Moon, Sun } from 'lucide-react'; // Ícones
 import '../App.css'; 
 
 const PartsReportPage = () => {
+  // --- Estado de Tema (Padrão: Dark Mode = false / Light) ---
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
   // --- Estados de Configuração Global ---
   const [inputText, setInputText] = useState('');
   const [reportTitle, setReportTitle] = useState('Relatório Técnico de Peças');
@@ -22,7 +26,7 @@ const PartsReportPage = () => {
 
   // --- Configuração da Tabela Completa ---
   const [showGeneralTable, setShowGeneralTable] = useState(true);
-  const [tableMetric, setTableMetric] = useState('daily'); // 'daily', 'weekly', 'monthly'
+  const [tableMetric, setTableMetric] = useState('daily');
 
   // --- CONFIGURAÇÃO DOS 5 GRÁFICOS DE PEÇAS ---
   const [chartsConfig, setChartsConfig] = useState([
@@ -145,15 +149,22 @@ const PartsReportPage = () => {
   };
 
   return (
-    <div className="reports-page-container">
+    <div className={`reports-page-container ${isDarkMode ? 'dark-mode' : ''}`}>
+      
       {/* --- MENU LATERAL (CONFIGURAÇÃO) --- */}
       <div className="config-panel custom-scrollbar">
-        <h2 className="config-title">Painel de Controle</h2>
+        <div className="config-header-row">
+            <h2 className="config-title">Configurações</h2>
+            <button className="mode-toggle-btn" onClick={() => setIsDarkMode(!isDarkMode)}>
+                {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+                {isDarkMode ? 'Light' : 'Dark'}
+            </button>
+        </div>
         
         <div className="config-group">
             <label>Cabeçalho do Relatório</label>
-            <input type="text" value={reportTitle} onChange={e => setReportTitle(e.target.value)} style={{marginBottom:'5px'}} />
-            <input type="text" value={reportSubtitle} onChange={e => setReportSubtitle(e.target.value)} />
+            <input type="text" value={reportTitle} onChange={e => setReportTitle(e.target.value)} style={{marginBottom:'5px', width: '100%'}} />
+            <input type="text" value={reportSubtitle} onChange={e => setReportSubtitle(e.target.value)} style={{width: '100%'}} />
         </div>
 
         <div className="config-group">
@@ -166,18 +177,18 @@ const PartsReportPage = () => {
                 className="input-textarea"
             />
             <button className="btn-generate full-width" onClick={handleProcess}>
-                PROCESSAR
+                PROCESSAR DADOS
             </button>
         </div>
 
         {data && (
             <>
                 <div className="config-group">
-                    <label>Período (Dias)</label>
-                    <input type="number" placeholder={data.days} value={manualDays} onChange={e => setManualDays(e.target.value)} />
+                    <label>Período Considerado (Dias)</label>
+                    <input type="number" placeholder={data.days} value={manualDays} onChange={e => setManualDays(e.target.value)} style={{width: '100%'}} />
                 </div>
 
-                <div className="config-divider">Insights (Cards)</div>
+                <div className="config-divider">Cartões de Insights</div>
                 <div className="toggle-item small">
                     <div className="toggle-header">
                         <span>Total de Peças</span>
@@ -203,15 +214,15 @@ const PartsReportPage = () => {
                     </div>
                 </div>
 
-                <div className="config-divider">Tabela Completa</div>
+                <div className="config-divider">Tabela Geral</div>
                 <div className="toggle-item">
                     <div className="toggle-header">
-                        <span>Ativar Tabela</span>
+                        <span>Exibir Tabela</span>
                         <Toggle active={showGeneralTable} onToggle={() => setShowGeneralTable(!showGeneralTable)} />
                     </div>
                     {showGeneralTable && (
                         <div className="toggle-content fade-in">
-                            <label style={{fontSize: '12px', color: '#aaa', marginBottom: '5px', display: 'block'}}>Métrica de Consumo:</label>
+                            <label style={{fontSize: '12px', marginBottom: '5px', display: 'block'}}>Métrica de Consumo:</label>
                             <select value={tableMetric} onChange={(e) => setTableMetric(e.target.value)} style={{width: '100%'}}>
                                 <option value="daily">Consumo Dia</option>
                                 <option value="weekly">Consumo Semana</option>
@@ -221,7 +232,7 @@ const PartsReportPage = () => {
                     )}
                 </div>
 
-                <div className="config-divider">Gráficos de Peças (Top X)</div>
+                <div className="config-divider">Gráficos (Top Peças)</div>
                 {chartsConfig.map((chart) => (
                     <div key={chart.id} className="toggle-item">
                         <div className="toggle-header">
@@ -230,8 +241,8 @@ const PartsReportPage = () => {
                         </div>
                         {chart.active && (
                             <div className="toggle-content fade-in">
-                                <input type="text" value={chart.title} onChange={e => updateChartConfig(chart.id, 'title', e.target.value)} placeholder="Título" style={{marginBottom:'8px'}} />
-                                <div className="row-inputs">
+                                <input type="text" value={chart.title} onChange={e => updateChartConfig(chart.id, 'title', e.target.value)} placeholder="Título" style={{marginBottom:'8px', width: '90%'}} />
+                                <div className="row-inputs" style={{display: 'flex', gap: '5px'}}>
                                     <select value={chart.category} onChange={e => updateChartConfig(chart.id, 'category', e.target.value)}>
                                         <option value="TODOS">Geral</option>
                                         <option value="VD">VD</option>
@@ -239,9 +250,9 @@ const PartsReportPage = () => {
                                         <option value="REF">REF</option>
                                         <option value="RAC">RAC</option>
                                     </select>
-                                    <input type="number" value={chart.limit} onChange={e => updateChartConfig(chart.id, 'limit', e.target.value)} placeholder="Qtd" style={{width: '60px'}} />
+                                    <input type="number" value={chart.limit} onChange={e => updateChartConfig(chart.id, 'limit', e.target.value)} placeholder="Qtd" style={{width: '50px'}} />
                                 </div>
-                                <div className="sub-toggle">
+                                <div className="sub-toggle" style={{marginTop: '10px', fontSize: '12px'}}>
                                     <span>Listar Ordens (Detalhe)</span>
                                     <Toggle active={chart.showOrders} onToggle={(val) => updateChartConfig(chart.id, 'showOrders', val)} />
                                 </div>
@@ -250,7 +261,7 @@ const PartsReportPage = () => {
                     </div>
                 ))}
 
-                <div className="config-divider">Rankings de Modelos</div>
+                <div className="config-divider">Rankings (Modelos)</div>
                 {modelRankings.map((rank) => (
                     <div key={rank.id} className="toggle-item">
                         <div className="toggle-header">
@@ -259,18 +270,17 @@ const PartsReportPage = () => {
                         </div>
                         {rank.active && (
                             <div className="toggle-content fade-in">
-                                <input type="text" value={rank.title} onChange={e => updateRankingConfig(rank.id, 'title', e.target.value)} placeholder="Título" style={{marginBottom:'8px'}} />
+                                <input type="text" value={rank.title} onChange={e => updateRankingConfig(rank.id, 'title', e.target.value)} placeholder="Título" style={{marginBottom:'8px', width:'90%'}} />
                                 <select value={rank.category} onChange={e => updateRankingConfig(rank.id, 'category', e.target.value)} style={{marginBottom:'8px', width:'100%'}}>
                                     <option value="TODOS">Todas Categorias</option>
                                     <option value="VD">VD</option>
                                     <option value="WSM">WSM</option>
                                     <option value="REF">REF</option>
                                     <option value="RAC">RAC</option>
-                                    <option value="Outros">Outros</option>
                                 </select>
-                                <div className="radio-group">
+                                <div style={{fontSize: '12px'}}>
                                     <label><input type="radio" checked={rank.onlyWithParts} onChange={() => updateRankingConfig(rank.id, 'onlyWithParts', true)} /> Com Peça</label>
-                                    <label><input type="radio" checked={!rank.onlyWithParts} onChange={() => updateRankingConfig(rank.id, 'onlyWithParts', false)} /> Geral</label>
+                                    <label style={{marginLeft: '10px'}}><input type="radio" checked={!rank.onlyWithParts} onChange={() => updateRankingConfig(rank.id, 'onlyWithParts', false)} /> Geral</label>
                                 </div>
                             </div>
                         )}
@@ -278,94 +288,155 @@ const PartsReportPage = () => {
                 ))}
 
                 <button className="btn-generate full-width" onClick={generatePDF} style={{marginTop: '20px'}}>
-                    BAIXAR PDF
+                    BAIXAR RELATÓRIO PDF
                 </button>
             </>
         )}
       </div>
 
-      {/* --- ÁREA DE PRÉ-VISUALIZAÇÃO (DIREITA) --- */}
+      {/* --- ÁREA DE PRÉ-VISUALIZAÇÃO --- */}
       <div className="preview-panel custom-scrollbar">
         {data ? (
             <div ref={reportRef} className="pdf-sheet">
-                {/* Header */}
-                <div className="report-header">
-                    <div className="header-titles">
+                
+                {/* Header Estilo Moderno */}
+                <div className="report-header-modern">
+                    <div>
                         <h1>{reportTitle}</h1>
                         <p>{reportSubtitle}</p>
                     </div>
-                    <div className="header-meta">
-                        <span>Período: {data.dateRange.start} a {data.dateRange.end}</span>
-                        <span>Intervalo: {daysToUse} dias</span>
-                        <span>Total de OSs: {data.transactions.length}</span>
+                    <div className="header-meta-tags">
+                        <span className="meta-tag">📅 {data.dateRange.start} - {data.dateRange.end}</span>
+                        <span className="meta-tag">⏱ {daysToUse} Dias</span>
+                        <span className="meta-tag">📑 {data.transactions.length} OSs</span>
                     </div>
                 </div>
 
-                {/* Insights Cards */}
-                <div className="insights-grid">
+                {/* Cards Coloridos */}
+                <div className="stats-grid">
                     {insightsConfig.totalParts && (
-                        <InsightCard label="Total Peças" value={data.totalPartsUsed} color="#00C49F" icon="📦" />
+                        <div className="stat-card-modern" style={{background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'}}>
+                            <div className="stat-icon-bg">📦</div>
+                            <div>
+                                <div className="stat-value">{data.totalPartsUsed}</div>
+                                <div className="stat-label">Peças Totais</div>
+                            </div>
+                        </div>
                     )}
                     {insightsConfig.avgParts && (
-                        <InsightCard label="Média Peças/Dia" value={(data.totalPartsUsed / daysToUse).toFixed(1)} color="#FFBB28" icon="📅" />
+                        <div className="stat-card-modern" style={{background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'}}>
+                            <div className="stat-icon-bg">📊</div>
+                            <div>
+                                <div className="stat-value">{(data.totalPartsUsed / daysToUse).toFixed(1)}</div>
+                                <div className="stat-label">Média / Dia</div>
+                            </div>
+                        </div>
                     )}
                     {insightsConfig.topPart && (
-                        <InsightCard label="Peça Mais Usada" value={data.parts[0]?.code || '-'} sub={`Qtd: ${data.parts[0]?.count || 0}`} color="#FF8042" icon="🏆" />
+                        <div className="stat-card-modern" style={{background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'}}>
+                            <div className="stat-icon-bg">🏆</div>
+                            <div>
+                                <div className="stat-value" style={{fontSize: '18px', marginBottom: '5px'}}>{data.parts[0]?.code || '-'}</div>
+                                <div className="stat-label">Top Peça ({data.parts[0]?.count})</div>
+                            </div>
+                        </div>
                     )}
                     {insightsConfig.transactions && (
-                        <InsightCard label="Total Transações" value={data.transactions.length} color="#0088FE" icon="📑" />
+                        <div className="stat-card-modern" style={{background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'}}>
+                            <div className="stat-icon-bg">📝</div>
+                            <div>
+                                <div className="stat-value">{data.transactions.length}</div>
+                                <div className="stat-label">Transações</div>
+                            </div>
+                        </div>
                     )}
                 </div>
 
+                {/* Rankings de Modelos */}
+                {modelRankings.some(r => r.active) && (
+                   <div className="report-section">
+                       <h3 className="section-title">Rankings de Modelos</h3>
+                       <div className="rankings-modern-grid">
+                           {modelRankings.filter(r => r.active).map(rank => {
+                               const rankingData = getModelRankingData(rank);
+                               const maxVal = rankingData.length > 0 ? rankingData[0].value : 1;
+                               return (
+                                   <div key={rank.id} className="ranking-container">
+                                       <h4 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#111827'}}>{rank.title}</h4>
+                                       {rankingData.length > 0 ? (
+                                           <div className="ranking-list">
+                                               {rankingData.map((item, idx) => (
+                                                   <div key={idx} className="ranking-item">
+                                                       <div className={`rank-badge ${idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : idx === 2 ? 'rank-3' : 'rank-other'}`}>
+                                                           {idx + 1}
+                                                       </div>
+                                                       <div className="rank-info">
+                                                           <div className="rank-header">
+                                                               <span>{item.name}</span>
+                                                               <span>{item.value}</span>
+                                                           </div>
+                                                           <div className="rank-bar-bg">
+                                                               <div 
+                                                                  className="rank-bar-fill" 
+                                                                  style={{
+                                                                    width: `${(item.value / maxVal) * 100}%`,
+                                                                    backgroundColor: idx === 0 ? '#fbbf24' : idx === 1 ? '#9ca3af' : idx === 2 ? '#d97706' : '#2563eb'
+                                                                  }}
+                                                               ></div>
+                                                           </div>
+                                                       </div>
+                                                   </div>
+                                               ))}
+                                           </div>
+                                       ) : <p style={{fontSize:'12px', color:'#999'}}>Sem dados para exibir.</p>}
+                                   </div>
+                               );
+                           })}
+                       </div>
+                   </div>
+                )}
+
                 {/* Gráficos de Peças */}
-                <div className="charts-section">
+                <div className="report-section">
                     {chartsConfig.filter(c => c.active).map((chart) => {
                         const chartData = getFilteredPartsData(chart);
                         return (
-                            <div key={chart.id} className="report-block">
-                                <h3 className="block-title">{chart.title} <small>(Top {chart.limit} - {chart.category})</small></h3>
+                            <div key={chart.id} style={{marginBottom: '40px', pageBreakInside: 'avoid'}}>
+                                <h3 className="section-title">{chart.title}</h3>
                                 
-                                <div className="chart-container">
-                                    <ResponsiveContainer width="100%" height={50 + (chartData.length * 40)}>
+                                <div style={{border: '1px solid #f3f4f6', borderRadius: '8px', padding: '10px'}}>
+                                    <ResponsiveContainer width="100%" height={60 + (chartData.length * 40)}>
                                         <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#eee" />
                                             <XAxis type="number" hide />
-                                            <YAxis dataKey="code" type="category" width={110} tick={{fontSize: 11, fill: '#333'}} />
-                                            <Tooltip cursor={{fill: '#f5f5f5'}} contentStyle={{backgroundColor: '#fff', border: '1px solid #ccc', color: '#000'}} />
-                                            <Bar dataKey="count" barSize={20} radius={[0, 4, 4, 0]}>
+                                            <YAxis dataKey="code" type="category" width={110} tick={{fontSize: 11, fill: '#374151', fontWeight: 600}} />
+                                            <Tooltip cursor={{fill: '#f9fafb'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
+                                            <Bar dataKey="count" barSize={18} radius={[0, 4, 4, 0]}>
                                                 {chartData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'][index % 5]} />
+                                                    <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'][index % 5]} />
                                                 ))}
-                                                <LabelList dataKey="count" position="right" fill="#333" fontSize={12} fontWeight="bold" />
+                                                <LabelList dataKey="count" position="right" fill="#374151" fontSize={11} fontWeight="bold" />
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
 
                                 {chart.showOrders && (
-                                    <div className="orders-breakdown">
+                                    <div style={{marginTop: '15px', paddingLeft: '10px', borderLeft: '2px solid #e5e7eb'}}>
                                         {chartData.map((part, pIdx) => {
                                             const orders = data.transactions.filter(t => t.partsList && t.partsList.includes(part.code));
                                             if (orders.length === 0) return null;
                                             return (
-                                                <div key={pIdx} className="part-orders-table">
-                                                    <h4 className="part-header">
-                                                        <span className="bullet" style={{backgroundColor: ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'][pIdx % 5]}}></span>
-                                                        {part.code} - <span style={{fontWeight: 'normal'}}>{part.desc}</span>
+                                                <div key={pIdx} style={{marginBottom: '10px'}}>
+                                                    <h4 style={{fontSize: '12px', margin: '0 0 5px 0', color: '#1f2937'}}>
+                                                        <span style={{color: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'][pIdx % 5]}}>●</span> {part.code} - {part.desc}
                                                     </h4>
-                                                    <table className="styled-table mini">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>Data</th>
-                                                                <th>OS / Referência</th>
-                                                                <th>Modelo</th>
-                                                            </tr>
-                                                        </thead>
+                                                    <table className="styled-table-modern" style={{width: '100%', fontSize: '10px'}}>
                                                         <tbody>
                                                             {orders.map((os, oIdx) => (
                                                                 <tr key={oIdx}>
-                                                                    <td>{os.date ? os.date.toLocaleDateString('pt-BR') : '-'}</td>
-                                                                    <td>{os.osNumber || 'N/A'}</td>
+                                                                    <td style={{width: '80px'}}>{os.date ? os.date.toLocaleDateString('pt-BR') : '-'}</td>
+                                                                    <td style={{width: '100px'}}>{os.osNumber || 'N/A'}</td>
                                                                     <td>{os.model}</td>
                                                                 </tr>
                                                             ))}
@@ -381,71 +452,45 @@ const PartsReportPage = () => {
                     })}
                 </div>
 
-                {/* Rankings de Modelos */}
-                <div className="rankings-grid">
-                    {modelRankings.filter(r => r.active).map(rank => {
-                        const rankingData = getModelRankingData(rank);
-                        return (
-                            <div key={rank.id} className="ranking-card">
-                                <h4 className="ranking-header">
-                                    {rank.title}
-                                    <span className="ranking-sub">({rank.category === 'TODOS' ? 'Geral' : rank.category})</span>
-                                </h4>
-                                {rankingData.length > 0 ? (
-                                    <table className="styled-table ranking">
-                                        <tbody>
-                                            {rankingData.map((item, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="rank-pos">#{idx+1}</td>
-                                                    <td className="rank-name">{item.name}</td>
-                                                    <td className="rank-val">{item.value}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                ) : <p className="no-data">Sem dados.</p>}
-                            </div>
-                        );
-                    })}
-                </div>
-
                 {/* Tabela Geral */}
                 {showGeneralTable && (
-                    <div className="report-block">
-                        <h3 className="block-title">Tabela Geral de Peças</h3>
-                        <table className="styled-table full">
+                    <div className="report-section">
+                        <h3 className="section-title">Detalhamento de Peças</h3>
+                        <table className="styled-table-modern">
                             <thead>
                                 <tr>
-                                    <th style={{width: '50px'}}>Pos.</th>
-                                    <th>Código da Peça</th>
+                                    <th style={{width: '40px'}}>#</th>
+                                    <th style={{width: '120px'}}>Código</th>
                                     <th>Descrição / Categoria</th>
-                                    <th className="text-center" style={{width: '80px'}}>Total</th>
+                                    <th className="text-center" style={{width: '80px'}}>Qtd.</th>
                                     <th className="text-center" style={{width: '100px'}}>{getConsumptionLabel()}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {data.parts.slice(0, 50).map((item, index) => (
                                     <tr key={index}>
-                                        <td>{index + 1}º</td>
-                                        <td className="font-mono">{item.code}</td>
+                                        <td style={{fontWeight: 'bold', color: '#9ca3af'}}>{index + 1}</td>
+                                        <td style={{fontFamily: 'monospace', fontWeight: 600}}>{item.code}</td>
                                         <td>
-                                            <span className="badge">{item.category}</span> {item.desc}
+                                            <span className="badge-category">{item.category}</span>
+                                            {item.desc}
                                         </td>
-                                        <td className="text-center font-bold bg-highlight">{item.count}</td>
-                                        <td className="text-center">{getConsumptionValue(item.count)}</td>
+                                        <td style={{textAlign: 'center', fontWeight: 'bold', color: '#2563eb'}}>{item.count}</td>
+                                        <td style={{textAlign: 'center'}}>{getConsumptionValue(item.count)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        <div className="table-footer">
-                            Exibindo as top 50 de {data.parts.length} peças encontradas no período.
+                        <div style={{marginTop: '10px', fontSize: '10px', color: '#6b7280', fontStyle: 'italic'}}>
+                            * Exibindo as top 50 peças com maior saída no período selecionado.
                         </div>
                     </div>
                 )}
             </div>
         ) : (
-            <div className="empty-state">
-                <p>Cole a planilha à esquerda e clique em <strong>PROCESSAR</strong> para gerar o relatório.</p>
+            <div className="empty-state" style={{textAlign: 'center', color: '#9ca3af', marginTop: '100px'}}>
+                <div style={{fontSize: '48px', marginBottom: '20px'}}>📊</div>
+                <p>Cole a planilha à esquerda e clique em <br/><strong>PROCESSAR DADOS</strong> para gerar o relatório.</p>
             </div>
         )}
       </div>
@@ -453,23 +498,12 @@ const PartsReportPage = () => {
   );
 };
 
-// Componentes Auxiliares
+// Componente Toggle (Mantido simples)
 const Toggle = ({ active, onToggle }) => (
     <label className="switch">
         <input type="checkbox" checked={active} onChange={(e) => onToggle(e.target.checked)} />
         <span className="slider round"></span>
     </label>
-);
-
-const InsightCard = ({ label, value, sub, color, icon }) => (
-    <div className="insight-card" style={{ borderTop: `4px solid ${color}` }}>
-        <div className="insight-icon" style={{color: color}}>{icon}</div>
-        <div className="insight-content">
-            <span className="insight-label">{label}</span>
-            <strong className="insight-value" style={{color: '#333'}}>{value}</strong>
-            {sub && <span className="insight-sub">{sub}</span>}
-        </div>
-    </div>
 );
 
 export default PartsReportPage;
