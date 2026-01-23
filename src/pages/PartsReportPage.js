@@ -708,7 +708,7 @@ const CounterInput = ({ value, onChange, placeholder = "0", isLightMode }) => {
                 value={value}
                 placeholder={placeholder}
                 onChange={(e) => onChange(e.target.value)}
-                onWheel={(e) => e.target.blur()} // <<< TRAVA O SCROLL AQUI
+                onWheel={(e) => e.target.blur()}
                 style={{ 
                     flex: 1, border: 'none', textAlign: 'center', 
                     background: 'transparent', color: isLightMode ? '#333' : '#fff',
