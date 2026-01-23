@@ -1,92 +1,117 @@
-export const processPartsData = (text) => {
-  if (!text) return { error: "Sem dados para processar." };
+// utils/partsLogic.js
 
-  const rows = text.split('\n').map(row => row.split('\t'));
-  if (rows.length < 2) return { error: "Formato inválido. Cole a planilha do Excel." };
-
-  const headers = rows[0].map(h => h.trim());
-  const getIndex = (name) => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
-  
-  const idxDesc = getIndex("Service Product  Description"); 
-  const idxDate = getIndex("Data de Solicitação"); 
-  const idxModel = getIndex("Modelo");
-  const idxOS = getIndex("SO Nro."); // Verifique se o nome da coluna é este mesmo
-
-  const partIndices = [];
-  for (let i = 1; i <= 10; i++) {
-    const num = i < 10 ? `0${i}` : `${i}`;
-    const idx = getIndex(`Código da peça${num}`);
-    if (idx !== -1) partIndices.push(idx);
-  }
-
-  let minDate = null;
-  let maxDate = null;
-  let totalPartsCount = 0;
-  const partsMap = {}; 
-  const transactions = []; 
-
-  for (let i = 1; i < rows.length; i++) {
-    const col = rows[i];
-    if (col.length < headers.length) continue;
-
-    const rawDesc = col[idxDesc] ? col[idxDesc].trim().toUpperCase() : "";
-    let category = "Outros";
-    
-    if (rawDesc.startsWith("LED LCD TV") || rawDesc.startsWith("LARGE FORMAT") || rawDesc.startsWith("TFT LCD MONITOR") || rawDesc.startsWith("HTS")) category = "VD";
-    else if (rawDesc.startsWith("WASHING MACHINE")) category = "WSM";
-    else if (rawDesc.startsWith("REFRIGERATOR")) category = "REF";
-    else if (rawDesc.startsWith("ROOM AIR CONDITIONER")) category = "RAC";
-
-    const dateStr = idxDate !== -1 ? col[idxDate] : null;
-    let dateObj = null;
-    if (dateStr && dateStr.includes('/')) {
-      const [day, month, year] = dateStr.split('/').map(Number);
-      dateObj = new Date(year, month - 1, day);
-      if (!isNaN(dateObj)) {
-        if (!minDate || dateObj < minDate) minDate = dateObj;
-        if (!maxDate || dateObj > maxDate) maxDate = dateObj;
-      }
+export const processPartsData = (inputText) => {
+    if (!inputText || inputText.trim() === '') {
+        return { error: 'Nenhum dado inserido.' };
     }
 
-    const model = idxModel !== -1 ? col[idxModel] : "DESCONHECIDO";
-    const osNumber = idxOS !== -1 ? col[idxOS] : "";
-    
-    const partsInOrder = [];
+    const rows = inputText.trim().split('\n').map(row => row.split('\t'));
+    const headers = rows[0].map(h => h.trim());
 
-    partIndices.forEach(pIdx => {
-      const partCode = col[pIdx] ? col[pIdx].trim() : "";
-      if (partCode && partCode.length > 3) { 
-        partsInOrder.push(partCode);
-        totalPartsCount++;
+    // --- ALTERAÇÃO AQUI: Agora busca especificamente por "SO Nro." ---
+    const dateIdx = headers.findIndex(h => h.toLowerCase().includes('data'));
+    const osIdx = headers.findIndex(h => h.toLowerCase().includes('so nro') || h.toLowerCase().includes('os') || h.toLowerCase().includes('ordem'));
+    const modelIdx = headers.findIndex(h => h.toLowerCase().includes('modelo') || h.toLowerCase().includes('model'));
+
+    // Identificar pares de colunas de Peças (Código e Descrição)
+    const partColumns = [];
+    for (let i = 1; i <= 20; i++) {
+        const numStr = i.toString().padStart(2, '0');
+        const codeIdx = headers.findIndex(h => h.toLowerCase().includes(`código da peça${numStr}`) || h.toLowerCase().includes(`codigo da peca${numStr}`));
+        const descIdx = headers.findIndex(h => h.toLowerCase().includes(`peças description ${numStr}`) || h.toLowerCase().includes(`pecas description ${numStr}`));
         
-        if (!partsMap[partCode]) {
-          partsMap[partCode] = { code: partCode, count: 0, category: category, desc: rawDesc };
+        if (codeIdx !== -1) {
+            partColumns.push({ codeIdx, descIdx });
         }
-        partsMap[partCode].count++;
-      }
-    });
-
-    transactions.push({
-      category,
-      model,
-      osNumber,
-      hasParts: partsInOrder.length > 0,
-      partsList: partsInOrder, // Salva lista de peças da ordem
-      date: dateObj
-    });
-  }
-
-  const daysDiff = minDate && maxDate ? Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1 : 1;
-  const sortedParts = Object.values(partsMap).sort((a, b) => b.count - a.count);
-
-  return {
-    transactions,
-    parts: sortedParts,
-    totalPartsUsed: totalPartsCount,
-    days: daysDiff,
-    dateRange: {
-      start: minDate ? minDate.toLocaleDateString('pt-BR') : '-',
-      end: maxDate ? maxDate.toLocaleDateString('pt-BR') : '-'
     }
-  };
+
+    if (partColumns.length === 0) {
+        return { error: 'Colunas de "Código da peça" não encontradas. Verifique o cabeçalho do Excel.' };
+    }
+
+    const partsMap = {};
+    const transactions = [];
+    let totalPartsUsed = 0;
+    const dates = [];
+
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.length < 2) continue;
+
+        const rowDateStr = dateIdx !== -1 ? row[dateIdx] : null;
+        const rowModel = modelIdx !== -1 ? (row[modelIdx] || 'OUTROS') : 'OUTROS';
+        
+        // --- PEGA O VALOR CORRETO DO "SO Nro." ---
+        const rowOS = osIdx !== -1 ? row[osIdx] : `N/A`;
+
+        let rowDate = null;
+        if (rowDateStr) {
+            const dateParts = rowDateStr.split('/');
+            if (dateParts.length === 3) {
+                rowDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`);
+                if (!isNaN(rowDate.getTime())) dates.push(rowDate);
+            }
+        }
+
+        const usedPartsInRow = [];
+
+        partColumns.forEach(col => {
+            const partCode = row[col.codeIdx] ? row[col.codeIdx].trim() : '';
+            const partDesc = col.descIdx !== -1 && row[col.descIdx] ? row[col.descIdx].trim() : 'Sem descrição';
+
+            if (partCode && partCode !== '-' && partCode.toLowerCase() !== 'null') {
+                usedPartsInRow.push(partCode);
+                totalPartsUsed++;
+
+                if (!partsMap[partCode]) {
+                    partsMap[partCode] = { count: 0, desc: partDesc, category: 'OUTROS' };
+                }
+                partsMap[partCode].count += 1;
+                if (partsMap[partCode].desc === 'Sem descrição' && partDesc !== 'Sem descrição') {
+                    partsMap[partCode].desc = partDesc;
+                }
+            }
+        });
+
+        transactions.push({
+            date: rowDate,
+            osNumber: rowOS, // Vinculado corretamente aqui
+            model: rowModel,
+            partsList: usedPartsInRow,
+            hasParts: usedPartsInRow.length > 0,
+            category: 'OUTROS'
+        });
+    }
+
+    const sortedParts = Object.entries(partsMap)
+        .map(([code, info]) => ({
+            code,
+            desc: info.desc,
+            count: info.count,
+            category: info.category
+        }))
+        .sort((a, b) => b.count - a.count);
+
+    let startStr = 'N/A';
+    let endStr = 'N/A';
+    let calculatedDays = 1;
+
+    if (dates.length > 0) {
+        const minDate = new Date(Math.min(...dates));
+        const maxDate = new Date(Math.max(...dates));
+        
+        startStr = minDate.toLocaleDateString('pt-BR');
+        endStr = maxDate.toLocaleDateString('pt-BR');
+
+        const diffTime = Math.abs(maxDate - minDate);
+        calculatedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    return {
+        dateRange: { start: startStr, end: endStr },
+        days: calculatedDays,
+        transactions: transactions,
+        parts: sortedParts,
+        totalPartsUsed: totalPartsUsed
+    };
 };
