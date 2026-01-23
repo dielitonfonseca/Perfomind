@@ -146,32 +146,39 @@ const PartsReportPage = () => {
   const getLtpOrders = (categoryGroup, warrantyStatus) => {
       if (!data || !data.transactions) return [];
 
-      return data.transactions.filter(t => {
-          if (t.durationDays === null || !t.warrantyFlag) return false;
-          if (t.warrantyFlag !== warrantyStatus) return false;
+      const result = [];
 
-          // --- REGRA ATUALIZADA: Ignora tanto "RH" quanto "II" ---
-          if (t.serviceType && (t.serviceType.includes('RH') || t.serviceType.includes('II'))) return false;
+      data.transactions.forEach(t => {
+          if (t.durationDays === null || !t.warrantyFlag) return;
+          if (t.warrantyFlag !== warrantyStatus) return;
+
+          if (t.serviceType && (t.serviceType.includes('RH') || t.serviceType.includes('II'))) return;
 
           let target = 0;
           let isMatchCategory = false;
 
           if (categoryGroup === 'VD_CI' && t.category === 'VD' && t.serviceType && t.serviceType.includes('CI')) {
-              target = ltpTargetVDCi;
+              target = parseInt(ltpTargetVDCi, 10);
               isMatchCategory = true;
           } else if (categoryGroup === 'VD' && t.category === 'VD' && (!t.serviceType || !t.serviceType.includes('CI'))) {
-              target = ltpTargetVD;
+              target = parseInt(ltpTargetVD, 10);
               isMatchCategory = true;
           } else if (categoryGroup === 'DA' && ['WSM', 'REF', 'RAC'].includes(t.category)) {
-              target = ltpTargetDA;
+              target = parseInt(ltpTargetDA, 10);
               isMatchCategory = true;
           }
 
-          return isMatchCategory && (t.durationDays > target);
-      }).sort((a, b) => b.durationDays - a.durationDays);
+          if (isMatchCategory && t.durationDays > target) {
+              result.push({
+                  ...t,
+                  overdueDays: t.durationDays - target 
+              });
+          }
+      });
+
+      return result.sort((a, b) => b.durationDays - a.durationDays);
   };
 
-  // --- PDF MULTIPÁGINA ATUALIZADO ---
   const handleExportPDF = async () => {
     const input = reportRef.current;
     if (!input) return;
@@ -191,13 +198,11 @@ const PartsReportPage = () => {
         let heightLeft = imgHeight;
         let position = 0;
 
-        // Adiciona a primeira página
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
 
-        // Loop para adicionar as próximas páginas se a altura sobrar
         while (heightLeft >= 0) {
-            position = heightLeft - imgHeight; // Desloca a imagem para cima
+            position = heightLeft - imgHeight; 
             pdf.addPage();
             pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
             heightLeft -= pageHeight;
@@ -259,7 +264,8 @@ const PartsReportPage = () => {
             <>
                 <div className="config-group">
                     <label>Período Considerado (Dias) *MANUAL*</label>
-                    <input type="number" placeholder="Digite os dias..." value={manualDays} onChange={e => setManualDays(e.target.value)} style={{width: '100%'}} />
+                    {/* --- USO DO NOVO COMPONENTE COUNTER INPUT --- */}
+                    <CounterInput value={manualDays} onChange={setManualDays} placeholder="Ex: 30" isLightMode={isLightMode} />
                 </div>
 
                 <div className="config-divider">Data no Cabeçalho</div>
@@ -382,15 +388,18 @@ const PartsReportPage = () => {
                             <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta DA</label>
-                                    <input type="number" value={ltpTargetDA} onChange={e => setLtpTargetDA(e.target.value)} style={{width: '100%'}} />
+                                    {/* --- USO DO NOVO COMPONENTE COUNTER INPUT --- */}
+                                    <CounterInput value={ltpTargetDA} onChange={setLtpTargetDA} isLightMode={isLightMode} />
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta VD</label>
-                                    <input type="number" value={ltpTargetVD} onChange={e => setLtpTargetVD(e.target.value)} style={{width: '100%'}} />
+                                    {/* --- USO DO NOVO COMPONENTE COUNTER INPUT --- */}
+                                    <CounterInput value={ltpTargetVD} onChange={setLtpTargetVD} isLightMode={isLightMode} />
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta VD CI</label>
-                                    <input type="number" value={ltpTargetVDCi} onChange={e => setLtpTargetVDCi(e.target.value)} style={{width: '100%'}} />
+                                    {/* --- USO DO NOVO COMPONENTE COUNTER INPUT --- */}
+                                    <CounterInput value={ltpTargetVDCi} onChange={setLtpTargetVDCi} isLightMode={isLightMode} />
                                 </div>
                             </div>
 
@@ -411,7 +420,6 @@ const PartsReportPage = () => {
         )}
       </div>
 
-      {/* --- ÁREA DE PRÉ-VISUALIZAÇÃO --- */}
       <div className="preview-panel custom-scrollbar" style={{ display: 'flex', justifyContent: 'center' }}>
         {data ? (
             <div ref={reportRef} className="pdf-sheet" style={{ background: isLightMode ? '#ffffff' : '#1a1a1a', color: isLightMode ? '#333' : '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '900px' }}>
@@ -457,17 +465,21 @@ const PartsReportPage = () => {
                     )}
                 </div>
 
+                {/* --- PÓDIO DE MODELOS (AGORA 100% EMPILHADO VERTICALMENTE E SEM O CONTAINER EM VOLTA) --- */}
                 {modelRankings.some(r => r.active) && (
                     <div className="report-section" style={{ width: '100%', marginTop: '30px', textAlign: 'center' }}>
-                        <h3 className="section-title" style={{ color: titleColor }}>Rankings de Modelos</h3>
-                        <div className="rankings-modern-grid" style={{ display: 'grid', gap: '15px', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+                        <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Rankings de Modelos</h3>
+                        
+                        {/* Removido o grid multi-colunas e forçado para 1fr (1 coluna) */}
+                        <div className="rankings-modern-grid" style={{ display: 'grid', gap: '15px', gridTemplateColumns: '1fr' }}>
                             {modelRankings.filter(r => r.active).map(rank => {
                                 const rankingData = getModelRankingData(rank);
                                 const medals = [{ color: '#FFD700', label: '1º Lugar' }, { color: '#C0C0C0', label: '2º Lugar' }, { color: '#CD7F32', label: '3º Lugar' }];
 
                                 return (
-                                    <div key={rank.id} className="ranking-container" style={{ background: isLightMode ? '#ffffff' : '#222', border: isLightMode ? '1px solid #eee' : '1px solid #333', padding: '15px', borderRadius: '12px' }}>
-                                        <h4 style={{margin: '0 0 15px 0', fontSize: '14px', color: titleColor, textAlign: 'center'}}>{rank.title}</h4>
+                                    /* Removido as bordas/fundo que enclausuravam o pódio */
+                                    <div key={rank.id} className="ranking-container" style={{ padding: '5px' }}>
+                                        <h4 style={{margin: '0 0 10px 0', fontSize: '14px', color: titleColor, textAlign: 'center'}}>{rank.title}</h4>
                                         {rankingData.length > 0 ? (
                                             <div className="ranking-grid" style={{ display: 'flex', justifyContent: 'space-around', gap: '10px' }}>
                                                 {rankingData.map((item, idx) => (
@@ -602,10 +614,14 @@ const PartsReportPage = () => {
                             const ltpData = getLtpOrders(config.cat, config.flag);
                             if (ltpData.length === 0) return null;
 
+                            const totalOverdue = ltpData.reduce((acc, order) => acc + order.overdueDays, 0);
+
                             return (
                                 <div key={title} style={{ marginBottom: '30px', textAlign: 'left', width: '100%', background: isLightMode ? '#f9f9f9' : '#222', padding: '20px', borderRadius: '12px' }}>
                                     <h4 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px' }}>
-                                        {title} <span style={{fontSize: '11px', color: '#888'}}>({ltpData.length} ordens)</span>
+                                        {title} 
+                                        <span style={{fontSize: '11px', color: '#888', marginLeft: '5px'}}>({ltpData.length} ordens)</span>
+                                        <span style={{fontSize: '11px', color: '#FF8042', marginLeft: '10px', fontWeight: 'bold'}}>Total QTD: {totalOverdue} dias</span>
                                     </h4>
 
                                     <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${isLightMode ? '#eee' : '#333'}` }}>
@@ -615,29 +631,21 @@ const PartsReportPage = () => {
                                                     <th style={{ color: axisColor, padding: '8px 12px' }}>Data Sol.</th>
                                                     <th style={{ color: axisColor, padding: '8px 12px' }}>Data Fim</th>
                                                     <th style={{ color: axisColor, padding: '8px 12px' }}>Dias</th>
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Ordem de Serviço</th>
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>QTD</th> 
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>OS</th>
                                                     <th style={{ color: axisColor, padding: '8px 12px' }}>Modelo</th>
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Flag</th>
                                                     <th style={{ color: axisColor, padding: '8px 12px' }}>Serviço</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {ltpData.map((order, idx) => (
                                                     <tr key={idx} style={{ borderTop: isLightMode ? '1px solid #eee' : '1px solid #444' }}>
-                                                        <td style={{ padding: '8px 12px', color: titleColor }}>
-                                                            {order.solDateObj ? order.solDateObj.toLocaleDateString('pt-BR') : 'N/A'}
-                                                        </td>
-                                                        <td style={{ padding: '8px 12px', color: titleColor }}>
-                                                            {order.finishDateObj ? order.finishDateObj.toLocaleDateString('pt-BR') : 'N/A'}
-                                                        </td>
-                                                        <td style={{ padding: '8px 12px', fontWeight: 'bold', color: '#FF8042' }}>
-                                                            {order.durationDays}
-                                                        </td>
-                                                        <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>
-                                                            {order.osNumber}
-                                                        </td>
+                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.solDateObj ? order.solDateObj.toLocaleDateString('pt-BR') : 'N/A'}</td>
+                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.finishDateObj ? order.finishDateObj.toLocaleDateString('pt-BR') : 'N/A'}</td>
+                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.durationDays}</td>
+                                                        <td style={{ padding: '8px 12px', fontWeight: 'bold', color: '#FF8042' }}>+{order.overdueDays}</td> 
+                                                        <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>{order.osNumber}</td>
                                                         <td style={{ padding: '8px 12px', color: titleColor }}>{order.model}</td>
-                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.warrantyFlag}</td>
                                                         <td style={{ padding: '8px 12px', color: titleColor, fontStyle: 'italic' }}>{order.serviceType}</td>
                                                     </tr>
                                                 ))}
@@ -662,11 +670,54 @@ const PartsReportPage = () => {
   );
 };
 
+// Componente Toggle (Slider)
 const Toggle = ({ active, onToggle }) => (
     <label className="switch">
         <input type="checkbox" checked={active} onChange={(e) => onToggle(e.target.checked)} />
         <span className="slider round"></span>
     </label>
 );
+
+// --- NOVO: COMPONENTE CUSTOMIZADO PARA INPUTS DE NÚMERO (Bloqueia Scroll e tem botões + e -) ---
+const CounterInput = ({ value, onChange, placeholder = "0", isLightMode }) => {
+    const btnStyle = {
+        width: '30px', height: '30px', border: 'none', 
+        background: isLightMode ? '#e5e7eb' : '#4b5563', 
+        color: isLightMode ? '#333' : '#fff',
+        cursor: 'pointer', fontWeight: 'bold', fontSize: '14px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+    };
+
+    const val = value === '' ? '' : parseInt(value, 10);
+
+    const handleIncrement = () => {
+        const current = val === '' ? 0 : val;
+        onChange(current + 1);
+    };
+
+    const handleDecrement = () => {
+        const current = val === '' ? 0 : val;
+        if (current > 0) onChange(current - 1);
+    };
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', width: '100%', background: isLightMode ? '#fff' : '#333', border: isLightMode ? '1px solid #ccc' : '1px solid #555', borderRadius: '6px', overflow: 'hidden' }}>
+            <button onClick={handleDecrement} style={btnStyle}>-</button>
+            <input
+                type="number"
+                value={value}
+                placeholder={placeholder}
+                onChange={(e) => onChange(e.target.value)}
+                onWheel={(e) => e.target.blur()} // <<< TRAVA O SCROLL AQUI
+                style={{ 
+                    flex: 1, border: 'none', textAlign: 'center', 
+                    background: 'transparent', color: isLightMode ? '#333' : '#fff',
+                    outline: 'none', fontSize: '14px' 
+                }} 
+            />
+            <button onClick={handleIncrement} style={btnStyle}>+</button>
+        </div>
+    );
+};
 
 export default PartsReportPage;
