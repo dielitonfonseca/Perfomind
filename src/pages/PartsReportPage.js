@@ -2,13 +2,28 @@ import React, { useState, useRef } from 'react';
 import { processPartsData } from '../utils/partsLogic';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
-import { Moon, Sun } from 'lucide-react'; // Ícones
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, LineChart, Line, ComposedChart, PieChart, Pie, Legend } from 'recharts';
 import '../App.css'; 
 
+const COLORS = ['#00C49F', '#FFBB28', '#FF8042', '#0088FE', '#8A2BE2', '#FF4500'];
+
+// --- NOVA REGRA DE CATEGORIZAÇÃO DE MODELOS ---
+const getCategoryFromModel = (model) => {
+    if (!model) return 'OUTROS';
+    const m = model.toUpperCase().trim();
+    
+    // Regras atualizadas conforme solicitado
+    if (m.startsWith('WW') || m.startsWith('WD') || m.startsWith('WF')) return 'WSM';
+    if (m.startsWith('RT') || m.startsWith('RF') || m.startsWith('RS') || m.startsWith('RL')) return 'REF';
+    if (m.startsWith('AR')) return 'RAC';
+    if (m.startsWith('QN') || m.startsWith('UN') || m.startsWith('LH') || m.startsWith('LS')) return 'VD';
+    
+    return 'OUTROS';
+};
+
 const PartsReportPage = () => {
-  // --- Estado de Tema (Padrão: Dark Mode = false / Light) ---
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // --- TEMA CLARO / ESCURO (Modo Impressão) ---
+  const [isLightMode, setIsLightMode] = useState(false);
 
   // --- Estados de Configuração Global ---
   const [inputText, setInputText] = useState('');
@@ -28,7 +43,7 @@ const PartsReportPage = () => {
   const [showGeneralTable, setShowGeneralTable] = useState(true);
   const [tableMetric, setTableMetric] = useState('daily');
 
-  // --- CONFIGURAÇÃO DOS 5 GRÁFICOS DE PEÇAS ---
+  // --- CONFIGURAÇÃO DOS GRÁFICOS DE PEÇAS ---
   const [chartsConfig, setChartsConfig] = useState([
     { id: 1, active: true, title: 'Top Peças (Geral)', category: 'TODOS', limit: 5, showOrders: false },
     { id: 2, active: false, title: 'Top Peças (VD)', category: 'VD', limit: 5, showOrders: false },
@@ -37,7 +52,7 @@ const PartsReportPage = () => {
     { id: 5, active: false, title: 'Top Peças (Ar Condicionado)', category: 'RAC', limit: 5, showOrders: false },
   ]);
 
-  // --- CONFIGURAÇÃO DOS 4 RANKINGS DE MODELOS ---
+  // --- CONFIGURAÇÃO DOS RANKINGS DE MODELOS ---
   const [modelRankings, setModelRankings] = useState([
     { id: 1, active: true, title: 'Top Modelos (Geral)', category: 'TODOS', onlyWithParts: true },
     { id: 2, active: false, title: 'Top Modelos (VD)', category: 'VD', onlyWithParts: true },
@@ -56,6 +71,26 @@ const PartsReportPage = () => {
         alert(processed.error);
         return;
     }
+
+    // PÓS-PROCESSAMENTO CORRIGIDO: Vincula a categoria da OS para a Peça
+    if (processed.transactions) {
+        processed.transactions.forEach(t => {
+            t.category = getCategoryFromModel(t.model);
+        });
+    }
+
+    if (processed.parts) {
+        processed.parts.forEach(p => {
+            // Busca qual OS usou essa peça para descobrir a categoria
+            const relatedTx = processed.transactions.find(t => t.partsList && t.partsList.includes(p.code));
+            if (relatedTx && relatedTx.category !== 'OUTROS') {
+                p.category = relatedTx.category;
+            } else {
+                p.category = 'OUTROS';
+            }
+        });
+    }
+
     setData(processed);
   };
 
@@ -72,7 +107,7 @@ const PartsReportPage = () => {
     setInsightsConfig(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // --- Lógica de Filtros ---
+  // --- Lógica de Filtros (Agora funciona porque a categoria está correta) ---
   const getFilteredPartsData = (config) => {
     if (!data || !data.parts) return [];
     let filtered = data.parts;
@@ -97,49 +132,109 @@ const PartsReportPage = () => {
     return Object.entries(counts)
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
-        .slice(0, 5);
+        .slice(0, 3); // Top 3 para o Layout de Pódio
   };
 
-  // --- Geração de PDF ---
-  const generatePDF = async () => {
+  // --- Geração de PDF Consistente ---
+  const handleExportPDF = async () => {
     const input = reportRef.current;
     if (!input) return;
+
+    // Ajuste de layout grid antes do print
+    const gridContainer = input.querySelector('.rankings-modern-grid');
+    const originalGridDisplay = gridContainer ? gridContainer.style.display : '';
+    
+    if (gridContainer) {
+        gridContainer.style.display = 'flex';
+        gridContainer.style.flexWrap = 'wrap';
+        gridContainer.style.gap = '15px'; 
+    }
+
+    const elementsToCheck = Array.from(input.querySelectorAll('.report-header-modern, .stat-row, .report-section, .pdf-chart-item, .styled-table-modern'));
+    const originalMargins = [];
+
+    const domWidth = input.offsetWidth;
+    const pdfPageHeightPx = (domWidth * 297) / 210;
+    let currentPageHeight = 0;
+    let elementsOnCurrentPage = [];
+
+    elementsToCheck.forEach((el) => {
+        const style = window.getComputedStyle(el);
+        const elHeight = el.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+        
+        if (currentPageHeight + elHeight > pdfPageHeightPx) {
+            const remainingSpace = pdfPageHeightPx - currentPageHeight;
+            if (elementsOnCurrentPage.length > 0 && remainingSpace > 0) {
+                const spacePerElement = remainingSpace / elementsOnCurrentPage.length;
+                elementsOnCurrentPage.forEach(pageEl => {
+                    const currentMb = parseFloat(pageEl.style.marginBottom || window.getComputedStyle(pageEl).marginBottom || 0);
+                    const newMb = currentMb + spacePerElement;
+                    if (!originalMargins.find(m => m.el === pageEl)) {
+                        originalMargins.push({ el: pageEl, margin: pageEl.style.marginBottom });
+                    }
+                    pageEl.style.marginBottom = `${newMb}px`;
+                });
+            }
+            currentPageHeight = 56 + elHeight; 
+            elementsOnCurrentPage = [el];
+        } else {
+            currentPageHeight += elHeight;
+            elementsOnCurrentPage.push(el);
+        }
+    });
+
     try {
         const canvas = await html2canvas(input, { 
-            scale: 2, backgroundColor: '#ffffff', useCORS: true,
-            height: input.scrollHeight, windowHeight: input.scrollHeight
+            scale: 2, 
+            backgroundColor: isLightMode ? '#ffffff' : '#1a1a1a', 
+            useCORS: true,
+            height: input.scrollHeight, windowHeight: input.scrollHeight, scrollY: 0
         });
+
         const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        const pageHeight = pdf.internal.pageSize.getHeight();
         
-        if (pdfHeight > 297) {
-            let heightLeft = pdfHeight;
-            let position = 0;
-            const pageHeight = 297;
-            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-            heightLeft -= pageHeight;
-            while (heightLeft >= 0) {
-              position = heightLeft - pdfHeight; 
-              pdf.addPage();
-              pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-              heightLeft -= pageHeight;
+        const paintBackground = () => {
+            if (isLightMode) {
+                pdf.setFillColor(255, 255, 255);
+            } else {
+                pdf.setFillColor(26, 26, 26);
             }
-        } else {
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.rect(0, 0, pdfWidth, pageHeight, 'F');
+        };
+
+        paintBackground();
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+        let heightLeft = pdfHeight - pageHeight;
+        while (heightLeft > 0) {
+          const position = -(pageHeight * (pdf.internal.getNumberOfPages()));
+          pdf.addPage();
+          paintBackground();
+          pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+          heightLeft -= pageHeight;
         }
-        pdf.save(`Relatorio_Pecas_${new Date().toLocaleDateString()}.pdf`);
-    } catch (err) { console.error("Erro ao gerar PDF", err); }
+
+        const fileName = `${reportTitle}${reportSubtitle ? ' - ' + reportSubtitle : ''}.pdf`;
+        pdf.save(fileName);
+    } catch (err) { console.error(err); }
+    finally {
+        originalMargins.forEach(({ el, margin }) => {
+            el.style.marginBottom = margin;
+        });
+        if (gridContainer) gridContainer.style.display = originalGridDisplay;
+    }
   };
 
   const daysToUse = manualDays ? parseInt(manualDays) : (data?.days || 1);
 
-  // Helper para Tabela
   const getConsumptionValue = (totalCount) => {
       if (tableMetric === 'weekly') return (totalCount / (daysToUse / 7)).toFixed(2);
       if (tableMetric === 'monthly') return (totalCount / (daysToUse / 30)).toFixed(2);
-      return (totalCount / daysToUse).toFixed(2); // daily
+      return (totalCount / daysToUse).toFixed(2);
   };
 
   const getConsumptionLabel = () => {
@@ -148,17 +243,31 @@ const PartsReportPage = () => {
       return 'Média/Dia';
   };
 
+  // Cores dinâmicas para o modo claro/escuro
+  const titleColor = isLightMode ? '#333' : '#fff';
+  const axisColor = isLightMode ? '#666' : '#ccc';
+  const gridColor = isLightMode ? '#d1d1d1' : '#444';
+  const tooltipBg = isLightMode ? '#ffffff' : '#333333';
+  const tooltipBorder = isLightMode ? '1px solid #ccc' : 'none';
+  const tooltipColor = isLightMode ? '#333' : '#fff';
+
   return (
-    <div className={`reports-page-container ${isDarkMode ? 'dark-mode' : ''}`}>
+    <div className="reports-page-container">
       
       {/* --- MENU LATERAL (CONFIGURAÇÃO) --- */}
       <div className="config-panel custom-scrollbar">
-        <div className="config-header-row">
-            <h2 className="config-title">Configurações</h2>
-            <button className="mode-toggle-btn" onClick={() => setIsDarkMode(!isDarkMode)}>
-                {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-                {isDarkMode ? 'Light' : 'Dark'}
-            </button>
+        <h2 className="config-title">Configuração</h2>
+
+        <div className="toggle-item small" style={{ marginBottom: '20px', background: isLightMode ? '#e0e0e0' : '#333' }}>
+            <div className="toggle-header">
+                <span style={{ color: isLightMode ? '#333' : '#fff', fontWeight: 'bold' }}>
+                    {isLightMode ? 'Modo de Impressão (Claro)' : 'Modo Padrão (Escuro)'}
+                </span>
+                <label className="switch">
+                    <input type="checkbox" checked={isLightMode} onChange={() => setIsLightMode(!isLightMode)} />
+                    <span className="slider round"></span>
+                </label>
+            </div>
         </div>
         
         <div className="config-group">
@@ -168,13 +277,14 @@ const PartsReportPage = () => {
         </div>
 
         <div className="config-group">
-            <label>Entrada de Dados</label>
+            <label>Entrada de Dados (Excel)</label>
             <textarea 
                 rows="5" 
                 placeholder="Cole o Excel aqui..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 className="input-textarea"
+                style={{ width: '100%', marginBottom: '10px' }}
             />
             <button className="btn-generate full-width" onClick={handleProcess}>
                 PROCESSAR DADOS
@@ -287,7 +397,7 @@ const PartsReportPage = () => {
                     </div>
                 ))}
 
-                <button className="btn-generate full-width" onClick={generatePDF} style={{marginTop: '20px'}}>
+                <button className="btn-generate full-width" onClick={handleExportPDF} style={{marginTop: '20px'}}>
                     BAIXAR RELATÓRIO PDF
                 </button>
             </>
@@ -297,98 +407,89 @@ const PartsReportPage = () => {
       {/* --- ÁREA DE PRÉ-VISUALIZAÇÃO --- */}
       <div className="preview-panel custom-scrollbar">
         {data ? (
-            <div ref={reportRef} className="pdf-sheet">
+            <div ref={reportRef} className="pdf-sheet" style={{ background: isLightMode ? '#ffffff' : '#1a1a1a', color: isLightMode ? '#333' : '#fff' }}>
                 
-                {/* Header Estilo Moderno */}
                 <div className="report-header-modern">
                     <div>
-                        <h1>{reportTitle}</h1>
-                        <p>{reportSubtitle}</p>
+                        <h1 style={{ color: isLightMode ? '#000' : '#fff' }}>{reportTitle}</h1>
+                        <p style={{ color: isLightMode ? '#666' : '#bbb' }}>{reportSubtitle}</p>
                     </div>
                     <div className="header-meta-tags">
-                        <span className="meta-tag">📅 {data.dateRange.start} - {data.dateRange.end}</span>
-                        <span className="meta-tag">⏱ {daysToUse} Dias</span>
-                        <span className="meta-tag">📑 {data.transactions.length} OSs</span>
+                        <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>📅 {data.dateRange.start} - {data.dateRange.end}</span>
+                        <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>⏱ {daysToUse} Dias</span>
+                        <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>📑 {data.transactions.length} OSs</span>
                     </div>
                 </div>
 
-                {/* Cards Coloridos */}
-                <div className="stats-grid">
+                {/* --- CARDS DE INSIGHTS (ESTILO APP PADRÃO) --- */}
+                <div className="stat-row" style={{ marginTop: '20px' }}>
                     {insightsConfig.totalParts && (
-                        <div className="stat-card-modern" style={{background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'}}>
-                            <div className="stat-icon-bg">📦</div>
-                            <div>
-                                <div className="stat-value">{data.totalPartsUsed}</div>
-                                <div className="stat-label">Peças Totais</div>
-                            </div>
+                        <div className="stat-card" style={{ background: isLightMode ? '#f0f0f0' : '#222', border: 'none', boxShadow: 'none' }}>
+                            <div className="stat-value" style={{ color: isLightMode ? '#000' : '#00C49F' }}>{data.totalPartsUsed}</div>
+                            <div className="stat-label" style={{ color: isLightMode ? '#555' : '#888' }}>Peças Totais</div>
                         </div>
                     )}
                     {insightsConfig.avgParts && (
-                        <div className="stat-card-modern" style={{background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'}}>
-                            <div className="stat-icon-bg">📊</div>
-                            <div>
-                                <div className="stat-value">{(data.totalPartsUsed / daysToUse).toFixed(1)}</div>
-                                <div className="stat-label">Média / Dia</div>
-                            </div>
+                        <div className="stat-card" style={{ background: isLightMode ? '#f0f0f0' : '#222', border: 'none', boxShadow: 'none' }}>
+                            <div className="stat-value" style={{ color: isLightMode ? '#000' : '#FFBB28' }}>{(data.totalPartsUsed / daysToUse).toFixed(1)}</div>
+                            <div className="stat-label" style={{ color: isLightMode ? '#555' : '#888' }}>Média / Dia</div>
                         </div>
                     )}
                     {insightsConfig.topPart && (
-                        <div className="stat-card-modern" style={{background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'}}>
-                            <div className="stat-icon-bg">🏆</div>
-                            <div>
-                                <div className="stat-value" style={{fontSize: '18px', marginBottom: '5px'}}>{data.parts[0]?.code || '-'}</div>
-                                <div className="stat-label">Top Peça ({data.parts[0]?.count})</div>
-                            </div>
+                        <div className="stat-card" style={{ background: isLightMode ? '#f0f0f0' : '#222', border: 'none', boxShadow: 'none' }}>
+                            <div className="stat-value" style={{ fontSize: '18px', color: isLightMode ? '#000' : '#FF8042' }}>{data.parts[0]?.code || '-'}</div>
+                            <div className="stat-label" style={{ color: isLightMode ? '#555' : '#888' }}>Top Peça ({data.parts[0]?.count})</div>
                         </div>
                     )}
                     {insightsConfig.transactions && (
-                        <div className="stat-card-modern" style={{background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'}}>
-                            <div className="stat-icon-bg">📝</div>
-                            <div>
-                                <div className="stat-value">{data.transactions.length}</div>
-                                <div className="stat-label">Transações</div>
-                            </div>
+                        <div className="stat-card" style={{ background: isLightMode ? '#f0f0f0' : '#222', border: 'none', boxShadow: 'none' }}>
+                            <div className="stat-value" style={{ color: isLightMode ? '#000' : '#0088FE' }}>{data.transactions.length}</div>
+                            <div className="stat-label" style={{ color: isLightMode ? '#555' : '#888' }}>Transações</div>
                         </div>
                     )}
                 </div>
 
-                {/* Rankings de Modelos */}
+                {/* --- RANKINGS DE MODELOS (ESTILO CARDS/PÓDIO) --- */}
                 {modelRankings.some(r => r.active) && (
                    <div className="report-section">
-                       <h3 className="section-title">Rankings de Modelos</h3>
-                       <div className="rankings-modern-grid">
+                       <h3 className="section-title" style={{ color: titleColor }}>Rankings de Modelos</h3>
+                       <div className="rankings-modern-grid" style={{ display: 'grid', gap: '15px' }}>
                            {modelRankings.filter(r => r.active).map(rank => {
                                const rankingData = getModelRankingData(rank);
-                               const maxVal = rankingData.length > 0 ? rankingData[0].value : 1;
+                               // Cores das medalhas (Ouro, Prata, Bronze)
+                               const medals = [
+                                   { color: '#FFD700', label: '1º Lugar' },
+                                   { color: '#C0C0C0', label: '2º Lugar' },
+                                   { color: '#CD7F32', label: '3º Lugar' }
+                               ];
+
                                return (
-                                   <div key={rank.id} className="ranking-container">
-                                       <h4 style={{margin: '0 0 15px 0', fontSize: '14px', color: '#111827'}}>{rank.title}</h4>
+                                   <div key={rank.id} className="ranking-container" style={{ 
+                                       background: isLightMode ? '#ffffff' : '#222', 
+                                       border: isLightMode ? '0px' : '1px solid #333',
+                                       boxShadow: 'none',
+                                       padding: '15px',
+                                       borderRadius: '8px'
+                                   }}>
+                                       <h4 style={{margin: '0 0 15px 0', fontSize: '14px', color: titleColor, textAlign: 'center'}}>{rank.title}</h4>
                                        {rankingData.length > 0 ? (
-                                           <div className="ranking-list">
+                                           <div className="ranking-grid" style={{ display: 'flex', justifyContent: 'space-around', gap: '10px' }}>
                                                {rankingData.map((item, idx) => (
-                                                   <div key={idx} className="ranking-item">
-                                                       <div className={`rank-badge ${idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : idx === 2 ? 'rank-3' : 'rank-other'}`}>
-                                                           {idx + 1}
+                                                   <div key={idx} className="rank-card" style={{ 
+                                                       borderColor: medals[idx].color, 
+                                                       background: isLightMode ? '#f9f9f9' : '#2a2a2a',
+                                                       flex: 1, textAlign: 'center', padding: '10px', borderRadius: '6px',
+                                                       borderTop: `4px solid ${medals[idx].color}`
+                                                   }}>
+                                                       <div className="rank-badge" style={{ backgroundColor: medals[idx].color, color: isLightMode ? '#000' : '#fff', display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', marginBottom: '8px' }}>
+                                                           {medals[idx].label}
                                                        </div>
-                                                       <div className="rank-info">
-                                                           <div className="rank-header">
-                                                               <span>{item.name}</span>
-                                                               <span>{item.value}</span>
-                                                           </div>
-                                                           <div className="rank-bar-bg">
-                                                               <div 
-                                                                  className="rank-bar-fill" 
-                                                                  style={{
-                                                                    width: `${(item.value / maxVal) * 100}%`,
-                                                                    backgroundColor: idx === 0 ? '#fbbf24' : idx === 1 ? '#9ca3af' : idx === 2 ? '#d97706' : '#2563eb'
-                                                                  }}
-                                                               ></div>
-                                                           </div>
-                                                       </div>
+                                                       <div className="rank-name" style={{ color: isLightMode ? '#000' : '#fff', fontWeight: 'bold', fontSize: '12px' }}>{item.name}</div>
+                                                       <div className="rank-value" style={{ color: isLightMode ? '#555' : '#ccc', fontSize: '11px', marginTop: '4px' }}>{item.value} Aparelhos</div>
                                                    </div>
                                                ))}
                                            </div>
-                                       ) : <p style={{fontSize:'12px', color:'#999'}}>Sem dados para exibir.</p>}
+                                       ) : <p style={{fontSize:'12px', color:'#999', textAlign: 'center'}}>Sem dados para exibir.</p>}
                                    </div>
                                );
                            })}
@@ -396,48 +497,55 @@ const PartsReportPage = () => {
                    </div>
                 )}
 
-                {/* Gráficos de Peças */}
+                {/* --- GRÁFICOS DE PEÇAS --- */}
                 <div className="report-section">
                     {chartsConfig.filter(c => c.active).map((chart) => {
                         const chartData = getFilteredPartsData(chart);
                         return (
                             <div key={chart.id} style={{marginBottom: '40px', pageBreakInside: 'avoid'}}>
-                                <h3 className="section-title">{chart.title}</h3>
+                                <h3 className="section-title" style={{ color: titleColor }}>{chart.title}</h3>
                                 
-                                <div style={{border: '1px solid #f3f4f6', borderRadius: '8px', padding: '10px'}}>
+                                <div className="pdf-chart-item" style={{ 
+                                    background: isLightMode ? '#ffffff' : '#222', 
+                                    border: isLightMode ? 'none' : '1px solid #333', 
+                                    boxShadow: 'none', 
+                                    outline: 'none',
+                                    padding: '10px',
+                                    borderRadius: '8px'
+                                }}>
                                     <ResponsiveContainer width="100%" height={60 + (chartData.length * 40)}>
                                         <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#eee" />
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={gridColor} />
                                             <XAxis type="number" hide />
-                                            <YAxis dataKey="code" type="category" width={110} tick={{fontSize: 11, fill: '#374151', fontWeight: 600}} />
-                                            <Tooltip cursor={{fill: '#f9fafb'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
+                                            <YAxis dataKey="code" type="category" width={110} tick={{fontSize: 11, fill: axisColor, fontWeight: 600}} />
+                                            <Tooltip cursor={{fill: isLightMode ? '#f0f0f0' : '#444'}} contentStyle={{ background: tooltipBg, border: tooltipBorder, color: tooltipColor, borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} itemStyle={{ color: tooltipColor }} />
                                             <Bar dataKey="count" barSize={18} radius={[0, 4, 4, 0]}>
                                                 {chartData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'][index % 5]} />
+                                                    <Cell key={`cell-${index}`} fill={['#00C49F', '#FFBB28', '#FF8042', '#0088FE', '#8A2BE2'][index % 5]} />
                                                 ))}
-                                                <LabelList dataKey="count" position="right" fill="#374151" fontSize={11} fontWeight="bold" />
+                                                <LabelList dataKey="count" position="right" fill={axisColor} fontSize={11} fontWeight="bold" />
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
 
                                 {chart.showOrders && (
-                                    <div style={{marginTop: '15px', paddingLeft: '10px', borderLeft: '2px solid #e5e7eb'}}>
+                                    <div style={{marginTop: '15px', paddingLeft: '10px', borderLeft: isLightMode ? '2px solid #e5e7eb' : '2px solid #4b5563'}}>
                                         {chartData.map((part, pIdx) => {
                                             const orders = data.transactions.filter(t => t.partsList && t.partsList.includes(part.code));
                                             if (orders.length === 0) return null;
                                             return (
                                                 <div key={pIdx} style={{marginBottom: '10px'}}>
-                                                    <h4 style={{fontSize: '12px', margin: '0 0 5px 0', color: '#1f2937'}}>
-                                                        <span style={{color: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'][pIdx % 5]}}>●</span> {part.code} - {part.desc}
+                                                    <h4 style={{fontSize: '12px', margin: '0 0 5px 0', color: titleColor}}>
+                                                        <span style={{color: ['#00C49F', '#FFBB28', '#FF8042', '#0088FE', '#8A2BE2'][pIdx % 5]}}>●</span> {part.code} - {part.desc}
                                                     </h4>
                                                     <table className="styled-table-modern" style={{width: '100%', fontSize: '10px'}}>
-                                                        <tbody>
+                                                        <tbody style={{ color: isLightMode ? '#333' : '#ccc' }}>
                                                             {orders.map((os, oIdx) => (
                                                                 <tr key={oIdx}>
-                                                                    <td style={{width: '80px'}}>{os.date ? os.date.toLocaleDateString('pt-BR') : '-'}</td>
-                                                                    <td style={{width: '100px'}}>{os.osNumber || 'N/A'}</td>
-                                                                    <td>{os.model}</td>
+                                                                    <td style={{width: '80px', borderBottom: isLightMode ? '1px solid #eee' : '1px solid #333'}}>{os.date ? os.date.toLocaleDateString('pt-BR') : '-'}</td>
+                                                                    <td style={{width: '100px', borderBottom: isLightMode ? '1px solid #eee' : '1px solid #333'}}>{os.osNumber || 'N/A'}</td>
+                                                                    <td style={{ borderBottom: isLightMode ? '1px solid #eee' : '1px solid #333' }}>{os.model}</td>
                                                                 </tr>
                                                             ))}
                                                         </tbody>
@@ -452,36 +560,38 @@ const PartsReportPage = () => {
                     })}
                 </div>
 
-                {/* Tabela Geral */}
+                {/* --- TABELA GERAL --- */}
                 {showGeneralTable && (
                     <div className="report-section">
-                        <h3 className="section-title">Detalhamento de Peças</h3>
+                        <h3 className="section-title" style={{ color: titleColor }}>Detalhamento de Peças</h3>
                         <table className="styled-table-modern">
                             <thead>
-                                <tr>
-                                    <th style={{width: '40px'}}>#</th>
-                                    <th style={{width: '120px'}}>Código</th>
-                                    <th>Descrição / Categoria</th>
-                                    <th className="text-center" style={{width: '80px'}}>Qtd.</th>
-                                    <th className="text-center" style={{width: '100px'}}>{getConsumptionLabel()}</th>
+                                <tr style={{ borderBottom: isLightMode ? '2px solid #ddd' : '2px solid #444' }}>
+                                    <th style={{width: '40px', color: axisColor}}>#</th>
+                                    <th style={{width: '120px', color: axisColor}}>Código</th>
+                                    <th style={{ color: axisColor }}>Descrição / Categoria</th>
+                                    <th className="text-center" style={{width: '80px', color: axisColor}}>Qtd.</th>
+                                    <th className="text-center" style={{width: '100px', color: axisColor}}>{getConsumptionLabel()}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {data.parts.slice(0, 50).map((item, index) => (
-                                    <tr key={index}>
-                                        <td style={{fontWeight: 'bold', color: '#9ca3af'}}>{index + 1}</td>
-                                        <td style={{fontFamily: 'monospace', fontWeight: 600}}>{item.code}</td>
-                                        <td>
-                                            <span className="badge-category">{item.category}</span>
+                                    <tr key={index} style={{ borderBottom: isLightMode ? '1px solid #eee' : '1px solid #333' }}>
+                                        <td style={{fontWeight: 'bold', color: isLightMode ? '#9ca3af' : '#6b7280'}}>{index + 1}</td>
+                                        <td style={{fontFamily: 'monospace', fontWeight: 600, color: titleColor}}>{item.code}</td>
+                                        <td style={{ color: titleColor }}>
+                                            <span className="badge-category" style={{ background: isLightMode ? '#f0f0f0' : '#333', color: isLightMode ? '#555' : '#ccc' }}>
+                                                {item.category}
+                                            </span>
                                             {item.desc}
                                         </td>
-                                        <td style={{textAlign: 'center', fontWeight: 'bold', color: '#2563eb'}}>{item.count}</td>
-                                        <td style={{textAlign: 'center'}}>{getConsumptionValue(item.count)}</td>
+                                        <td style={{textAlign: 'center', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa'}}>{item.count}</td>
+                                        <td style={{textAlign: 'center', color: titleColor}}>{getConsumptionValue(item.count)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        <div style={{marginTop: '10px', fontSize: '10px', color: '#6b7280', fontStyle: 'italic'}}>
+                        <div style={{marginTop: '10px', fontSize: '10px', color: isLightMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic'}}>
                             * Exibindo as top 50 peças com maior saída no período selecionado.
                         </div>
                     </div>
@@ -498,7 +608,7 @@ const PartsReportPage = () => {
   );
 };
 
-// Componente Toggle (Mantido simples)
+// Componente Toggle (Slider)
 const Toggle = ({ active, onToggle }) => (
     <label className="switch">
         <input type="checkbox" checked={active} onChange={(e) => onToggle(e.target.checked)} />
