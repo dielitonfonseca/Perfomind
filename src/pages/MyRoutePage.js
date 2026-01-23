@@ -1,3 +1,5 @@
+// src/pages/MyRoutePage.js
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, getDocs, doc, updateDoc, getDoc, collectionGroup, where, limit } from 'firebase/firestore';
@@ -7,7 +9,12 @@ import '../App.css';
 
 function MyRoutePage() {
   const [routes, setRoutes] = useState([]);
-  const [selectedTech, setSelectedTech] = useState('');
+  
+  // 1. MODIFICADO: Inicializa o estado com o valor do localStorage (se existir)
+  const [selectedTech, setSelectedTech] = useState(() => {
+    return localStorage.getItem('tecnicoSelecionado') || '';
+  });
+
   const [techsFound, setTechsFound] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -15,6 +22,13 @@ function MyRoutePage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelItem, setCancelItem] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
+
+  // 2. ADICIONADO: Função para atualizar o estado e salvar no localStorage
+  const handleTechChange = (e) => {
+    const tech = e.target.value;
+    setSelectedTech(tech);
+    localStorage.setItem('tecnicoSelecionado', tech);
+  };
 
   useEffect(() => { fetchRoutes(); }, []);
 
@@ -147,10 +161,15 @@ function MyRoutePage() {
   return (
     <div className="page-container" style={{ paddingBottom: '90px' }}>
       
-      {/* SELETOR DE TÉCNICO (LISTA NO TOPO) */}
-      <div className="filter-header">
-         <h2 className="page-title">Minha Rota</h2>
-         <select value={selectedTech} onChange={e => setSelectedTech(e.target.value)} className="app-select tech-filter">
+      {/* 3. MODIFICADO: Estilos adicionados para que o seletor ocupe 100% da largura */}
+      <div className="filter-header" style={{ display: 'flex', flexDirection: 'column', width: '100%', alignItems: 'stretch' }}>
+         <h2 className="page-title" style={{ marginBottom: '10px' }}>Minha Rota</h2>
+         <select 
+            value={selectedTech} 
+            onChange={handleTechChange} /* Usa a nova função que salva no localStorage */
+            className="app-select tech-filter"
+            style={{ width: '100%', boxSizing: 'border-box' }} /* Força a largura total */
+         >
             <option value="">Todos os Técnicos</option>
             {techsFound.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
