@@ -264,7 +264,6 @@ const PartsReportPage = () => {
             <>
                 <div className="config-group">
                     <label>Período Considerado (Dias) *MANUAL*</label>
-                    {/* --- USO DO NOVO COMPONENTE COUNTER INPUT --- */}
                     <CounterInput value={manualDays} onChange={setManualDays} placeholder="Ex: 30" isLightMode={isLightMode} />
                 </div>
 
@@ -388,17 +387,14 @@ const PartsReportPage = () => {
                             <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta DA</label>
-                                    {/* --- USO DO NOVO COMPONENTE COUNTER INPUT --- */}
                                     <CounterInput value={ltpTargetDA} onChange={setLtpTargetDA} isLightMode={isLightMode} />
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta VD</label>
-                                    {/* --- USO DO NOVO COMPONENTE COUNTER INPUT --- */}
                                     <CounterInput value={ltpTargetVD} onChange={setLtpTargetVD} isLightMode={isLightMode} />
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta VD CI</label>
-                                    {/* --- USO DO NOVO COMPONENTE COUNTER INPUT --- */}
                                     <CounterInput value={ltpTargetVDCi} onChange={setLtpTargetVDCi} isLightMode={isLightMode} />
                                 </div>
                             </div>
@@ -465,21 +461,27 @@ const PartsReportPage = () => {
                     )}
                 </div>
 
-                {/* --- PÓDIO DE MODELOS (AGORA 100% EMPILHADO VERTICALMENTE E SEM O CONTAINER EM VOLTA) --- */}
+                {/* --- PÓDIO DE MODELOS (100% VERTICAL E SEM FUNDO NO MODO CLARO) --- */}
                 {modelRankings.some(r => r.active) && (
                     <div className="report-section" style={{ width: '100%', marginTop: '30px', textAlign: 'center' }}>
                         <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Rankings de Modelos</h3>
                         
-                        {/* Removido o grid multi-colunas e forçado para 1fr (1 coluna) */}
-                        <div className="rankings-modern-grid" style={{ display: 'grid', gap: '15px', gridTemplateColumns: '1fr' }}>
+                        {/* Container principal forçando layout em coluna (um em cima do outro) */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', width: '100%' }}>
                             {modelRankings.filter(r => r.active).map(rank => {
                                 const rankingData = getModelRankingData(rank);
                                 const medals = [{ color: '#FFD700', label: '1º Lugar' }, { color: '#C0C0C0', label: '2º Lugar' }, { color: '#CD7F32', label: '3º Lugar' }];
 
                                 return (
-                                    /* Removido as bordas/fundo que enclausuravam o pódio */
-                                    <div key={rank.id} className="ranking-container" style={{ padding: '5px' }}>
-                                        <h4 style={{margin: '0 0 10px 0', fontSize: '14px', color: titleColor, textAlign: 'center'}}>{rank.title}</h4>
+                                    /* Condicional: Sem fundo/borda no Modo Claro, mantém o fundo escuro no Modo Padrão */
+                                    <div key={rank.id} style={{ 
+                                        padding: isLightMode ? '0' : '15px', 
+                                        background: isLightMode ? 'transparent' : '#252830', 
+                                        border: isLightMode ? 'none' : '1px solid #444',
+                                        borderRadius: '8px',
+                                        width: '100%'
+                                    }}>
+                                        <h4 style={{margin: '0 0 10px 0', fontSize: '14px', color: titleColor, textAlign: 'center', textTransform: 'uppercase'}}>{rank.title}</h4>
                                         {rankingData.length > 0 ? (
                                             <div className="ranking-grid" style={{ display: 'flex', justifyContent: 'space-around', gap: '10px' }}>
                                                 {rankingData.map((item, idx) => (
@@ -678,7 +680,7 @@ const Toggle = ({ active, onToggle }) => (
     </label>
 );
 
-// --- NOVO: COMPONENTE CUSTOMIZADO PARA INPUTS DE NÚMERO (Bloqueia Scroll e tem botões + e -) ---
+// --- COMPONENTE CUSTOMIZADO PARA INPUTS DE NÚMERO ---
 const CounterInput = ({ value, onChange, placeholder = "0", isLightMode }) => {
     const btnStyle = {
         width: '30px', height: '30px', border: 'none', 
