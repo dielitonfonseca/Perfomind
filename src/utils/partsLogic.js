@@ -6,19 +6,28 @@ export const processPartsData = (inputText) => {
     }
 
     const rows = inputText.trim().split('\n').map(row => row.split('\t'));
-    const headers = rows[0].map(h => h.trim());
+    const headers = rows[0].map(h => h.trim().toLowerCase());
 
-    // --- ALTERAÇÃO AQUI: Agora busca especificamente por "SO Nro." ---
-    const dateIdx = headers.findIndex(h => h.toLowerCase().includes('data'));
-    const osIdx = headers.findIndex(h => h.toLowerCase().includes('so nro') || h.toLowerCase().includes('os') || h.toLowerCase().includes('ordem'));
-    const modelIdx = headers.findIndex(h => h.toLowerCase().includes('modelo') || h.toLowerCase().includes('model'));
+    // --- Colunas Originais ---
+    const osIdx = headers.findIndex(h => h.includes('so nro') || h.includes('os') || h.includes('ordem'));
+    const modelIdx = headers.findIndex(h => h.includes('modelo') || h.includes('model'));
 
-    // Identificar pares de colunas de Peças (Código e Descrição)
+    // --- NOVO: Coluna TIPO DE SERVIÇO ---
+    const serviceTypeIdx = headers.findIndex(h => h.includes('tipo de servi') || h.includes('service type'));
+
+    // --- Colunas de LTP ---
+    const solDateIdx = headers.findIndex(h => h.includes('solicita')); 
+    const finishDateIdx = headers.findIndex(h => h.includes('reparo finalizado')); 
+    const warrantyIdx = headers.findIndex(h => h.includes('warranty') || h.includes('garantia'));
+
+    const dateIdx = headers.findIndex(h => h.includes('data') && !h.includes('solicita') && !h.includes('reparo'));
+
+    // Identificar pares de colunas de Peças
     const partColumns = [];
     for (let i = 1; i <= 20; i++) {
         const numStr = i.toString().padStart(2, '0');
-        const codeIdx = headers.findIndex(h => h.toLowerCase().includes(`código da peça${numStr}`) || h.toLowerCase().includes(`codigo da peca${numStr}`));
-        const descIdx = headers.findIndex(h => h.toLowerCase().includes(`peças description ${numStr}`) || h.toLowerCase().includes(`pecas description ${numStr}`));
+        const codeIdx = headers.findIndex(h => h.includes(`código da peça${numStr}`) || h.includes(`codigo da peca${numStr}`));
+        const descIdx = headers.findIndex(h => h.includes(`peças description ${numStr}`) || h.includes(`pecas description ${numStr}`));
         
         if (codeIdx !== -1) {
             partColumns.push({ codeIdx, descIdx });
@@ -34,24 +43,45 @@ export const processPartsData = (inputText) => {
     let totalPartsUsed = 0;
     const dates = [];
 
+    const parseDate = (dateStr) => {
+        if (!dateStr || dateStr.trim() === '-' || dateStr.trim() === '') return null;
+        const dateOnly = dateStr.trim().split(' ')[0]; 
+        const parts = dateOnly.split('/');
+        if (parts.length === 3) {
+            const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+            return isNaN(d.getTime()) ? null : d;
+        }
+        return null;
+    };
+
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (row.length < 2) continue;
 
         const rowDateStr = dateIdx !== -1 ? row[dateIdx] : null;
         const rowModel = modelIdx !== -1 ? (row[modelIdx] || 'OUTROS') : 'OUTROS';
-        
-        // --- PEGA O VALOR CORRETO DO "SO Nro." ---
         const rowOS = osIdx !== -1 ? row[osIdx] : `N/A`;
+        
+        // --- Captura o Tipo de Serviço ---
+        const rowServiceType = serviceTypeIdx !== -1 ? row[serviceTypeIdx].toUpperCase().trim() : 'OUTROS';
 
-        let rowDate = null;
-        if (rowDateStr) {
-            const dateParts = rowDateStr.split('/');
-            if (dateParts.length === 3) {
-                rowDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`);
-                if (!isNaN(rowDate.getTime())) dates.push(rowDate);
-            }
+        // --- LÓGICA DE LTP: Captura e Cálculo ---
+        const solDateStr = solDateIdx !== -1 ? row[solDateIdx] : null;
+        const finishDateStr = finishDateIdx !== -1 ? row[finishDateIdx] : null;
+        const warrantyFlag = warrantyIdx !== -1 ? row[warrantyIdx] : 'N/A';
+
+        const solDate = parseDate(solDateStr);
+        const finishDate = parseDate(finishDateStr);
+
+        let durationDays = null;
+        if (solDate && finishDate) {
+            const diffTime = finishDate - solDate;
+            durationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            if (durationDays < 0) durationDays = 0; 
         }
+
+        const rowDate = parseDate(rowDateStr);
+        if (rowDate) dates.push(rowDate);
 
         const usedPartsInRow = [];
 
@@ -75,11 +105,16 @@ export const processPartsData = (inputText) => {
 
         transactions.push({
             date: rowDate,
-            osNumber: rowOS, // Vinculado corretamente aqui
+            osNumber: rowOS,
             model: rowModel,
             partsList: usedPartsInRow,
             hasParts: usedPartsInRow.length > 0,
-            category: 'OUTROS'
+            category: 'OUTROS',
+            serviceType: rowServiceType, // --- NOVO CAMPO ENVIADO AO REACT ---
+            solDateObj: solDate,
+            finishDateObj: finishDate,
+            durationDays: durationDays,
+            warrantyFlag: warrantyFlag ? warrantyFlag.toUpperCase().trim() : 'N/A'
         });
     }
 

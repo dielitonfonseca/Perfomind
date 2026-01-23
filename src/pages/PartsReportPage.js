@@ -5,7 +5,6 @@ import jsPDF from 'jspdf';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import '../App.css'; 
 
-// --- NOVA REGRA DE CATEGORIZAÇÃO DE MODELOS ---
 const getCategoryFromModel = (model) => {
     if (!model) return 'OUTROS';
     const m = model.toUpperCase().trim();
@@ -19,28 +18,28 @@ const getCategoryFromModel = (model) => {
 };
 
 const PartsReportPage = () => {
-  // --- TEMA CLARO / ESCURO (Modo Impressão) ---
   const [isLightMode, setIsLightMode] = useState(false);
-
-  // --- Estados de Configuração Global ---
   const [inputText, setInputText] = useState('');
   const [reportTitle, setReportTitle] = useState('Relatório Técnico de Peças');
   const [reportSubtitle, setReportSubtitle] = useState('Análise de Consumo e Modelos');
-  const [manualDays, setManualDays] = useState(''); // 100% manual
+  const [manualDays, setManualDays] = useState('');
 
-  // --- Configuração de Insights (Estilo App) ---
+  const [showDateInHeader, setShowDateInHeader] = useState(true);
+  const [headerDateFormat, setHeaderDateFormat] = useState('date');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [customWeek, setCustomWeek] = useState('');
+
   const [insightsConfig, setInsightsConfig] = useState({
     totalParts: true,
     avgParts: true,
     topPart: true
   });
 
-  // --- Configuração da Tabela Completa (Detalhamento) ---
   const [showGeneralTable, setShowGeneralTable] = useState(true);
   const [tableMetric, setTableMetric] = useState('daily');
   const [tableRowLimit, setTableRowLimit] = useState(50); 
 
-  // --- CONFIGURAÇÃO DOS GRÁFICOS DE PEÇAS ---
   const [chartsConfig, setChartsConfig] = useState([
     { id: 1, active: true, title: 'Top Peças VD', category: 'VD', limit: 5, showOrders: false },
     { id: 2, active: true, title: 'Top Peças WSM', category: 'WSM', limit: 5, showOrders: false },
@@ -49,7 +48,6 @@ const PartsReportPage = () => {
     { id: 5, active: false, title: 'Top Peças (Geral)', category: 'TODOS', limit: 5, showOrders: false },
   ]);
 
-  // --- CONFIGURAÇÃO DOS RANKINGS DE MODELOS (RESTAURADO) ---
   const [modelRankings, setModelRankings] = useState([
     { id: 1, active: true, title: 'Top Modelos (Geral)', category: 'TODOS', onlyWithParts: true },
     { id: 2, active: false, title: 'Top Modelos (VD)', category: 'VD', onlyWithParts: true },
@@ -57,7 +55,20 @@ const PartsReportPage = () => {
     { id: 4, active: false, title: 'Top Modelos (RAC)', category: 'RAC', onlyWithParts: true },
   ]);
 
-  // --- Dados Processados ---
+  const [showLtpSection, setShowLtpSection] = useState(false);
+  const [ltpTargetDA, setLtpTargetDA] = useState(5);
+  const [ltpTargetVD, setLtpTargetVD] = useState(7);
+  const [ltpTargetVDCi, setLtpTargetVDCi] = useState(3);
+
+  const [ltpFilters, setLtpFilters] = useState({
+      vdOw: true,
+      vdLp: true,
+      daOw: true,
+      daLp: true,
+      vdCiOw: true,
+      vdCiLp: true,
+  });
+
   const [data, setData] = useState(null);
   const reportRef = useRef();
 
@@ -89,12 +100,10 @@ const PartsReportPage = () => {
     setData(processed);
   };
 
-  // --- Atualizadores de Estado ---
   const updateChartConfig = (id, field, value) => {
     setChartsConfig(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
 
-  // Lógica restaurada para o ranking
   const updateRankingConfig = (id, field, value) => {
     setModelRankings(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
@@ -103,7 +112,10 @@ const PartsReportPage = () => {
     setInsightsConfig(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // --- Lógica de Filtros ---
+  const toggleLtpFilter = (key) => {
+      setLtpFilters(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const getFilteredPartsData = (config) => {
     if (!data || !data.parts) return [];
     let filtered = data.parts;
@@ -113,7 +125,6 @@ const PartsReportPage = () => {
     return filtered.slice(0, config.limit);
   };
 
-  // Lógica restaurada para ranking de modelos
   const getModelRankingData = (config) => {
     if (!data || !data.transactions) return [];
     const filtered = data.transactions.filter(t => {
@@ -129,10 +140,38 @@ const PartsReportPage = () => {
     return Object.entries(counts)
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
-        .slice(0, 3); // Top 3 para o Layout de Pódio
+        .slice(0, 3);
   };
 
-  // --- Geração de PDF ---
+  const getLtpOrders = (categoryGroup, warrantyStatus) => {
+      if (!data || !data.transactions) return [];
+
+      return data.transactions.filter(t => {
+          if (t.durationDays === null || !t.warrantyFlag) return false;
+          if (t.warrantyFlag !== warrantyStatus) return false;
+
+          // --- REGRA ATUALIZADA: Ignora tanto "RH" quanto "II" ---
+          if (t.serviceType && (t.serviceType.includes('RH') || t.serviceType.includes('II'))) return false;
+
+          let target = 0;
+          let isMatchCategory = false;
+
+          if (categoryGroup === 'VD_CI' && t.category === 'VD' && t.serviceType && t.serviceType.includes('CI')) {
+              target = ltpTargetVDCi;
+              isMatchCategory = true;
+          } else if (categoryGroup === 'VD' && t.category === 'VD' && (!t.serviceType || !t.serviceType.includes('CI'))) {
+              target = ltpTargetVD;
+              isMatchCategory = true;
+          } else if (categoryGroup === 'DA' && ['WSM', 'REF', 'RAC'].includes(t.category)) {
+              target = ltpTargetDA;
+              isMatchCategory = true;
+          }
+
+          return isMatchCategory && (t.durationDays > target);
+      }).sort((a, b) => b.durationDays - a.durationDays);
+  };
+
+  // --- PDF MULTIPÁGINA ATUALIZADO ---
   const handleExportPDF = async () => {
     const input = reportRef.current;
     if (!input) return;
@@ -146,10 +185,24 @@ const PartsReportPage = () => {
 
         const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        const imgWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        // Adiciona a primeira página
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        // Loop para adicionar as próximas páginas se a altura sobrar
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight; // Desloca a imagem para cima
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+
         const fileName = `${reportTitle}${reportSubtitle ? ' - ' + reportSubtitle : ''}.pdf`;
         pdf.save(fileName);
     } catch (err) { console.error(err); }
@@ -169,7 +222,6 @@ const PartsReportPage = () => {
       return 'Média/Dia';
   };
 
-  // Cores dinâmicas para o modo claro/escuro
   const titleColor = isLightMode ? '#333' : '#fff';
   const axisColor = isLightMode ? '#666' : '#ccc';
   const gridColor = isLightMode ? '#d1d1d1' : '#444';
@@ -179,7 +231,6 @@ const PartsReportPage = () => {
   return (
     <div className="reports-page-container">
       
-      {/* --- MENU LATERAL (CONFIGURAÇÃO) --- */}
       <div className="config-panel custom-scrollbar">
         <h2 className="config-title">Configuração</h2>
 
@@ -200,17 +251,8 @@ const PartsReportPage = () => {
 
         <div className="config-group">
             <label>Entrada de Dados (Excel)</label>
-            <textarea 
-                rows="5" 
-                placeholder="Cole o Excel aqui..."
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                className="input-textarea"
-                style={{ width: '100%', marginBottom: '10px' }}
-            />
-            <button className="btn-generate full-width" onClick={handleProcess}>
-                PROCESSAR DADOS
-            </button>
+            <textarea rows="5" placeholder="Cole o Excel aqui..." value={inputText} onChange={(e) => setInputText(e.target.value)} className="input-textarea" style={{ width: '100%', marginBottom: '10px' }} />
+            <button className="btn-generate full-width" onClick={handleProcess}>PROCESSAR DADOS</button>
         </div>
 
         {data && (
@@ -218,6 +260,31 @@ const PartsReportPage = () => {
                 <div className="config-group">
                     <label>Período Considerado (Dias) *MANUAL*</label>
                     <input type="number" placeholder="Digite os dias..." value={manualDays} onChange={e => setManualDays(e.target.value)} style={{width: '100%'}} />
+                </div>
+
+                <div className="config-divider">Data no Cabeçalho</div>
+                <div className="toggle-item small" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div className="toggle-header" style={{ width: '100%' }}>
+                        <span>Inserir Data no Header</span>
+                        <Toggle active={showDateInHeader} onToggle={() => setShowDateInHeader(!showDateInHeader)} />
+                    </div>
+                    {showDateInHeader && (
+                        <div className="toggle-content fade-in" style={{ width: '100%', marginTop: '10px' }}>
+                            <div style={{ display: 'flex', gap: '15px', marginBottom: '10px', fontSize: '12px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center' }}><input type="radio" checked={headerDateFormat === 'date'} onChange={() => setHeaderDateFormat('date')} style={{ marginRight: '5px' }} />DATA</label>
+                                <label style={{ display: 'flex', alignItems: 'center' }}><input type="radio" checked={headerDateFormat === 'week'} onChange={() => setHeaderDateFormat('week')} style={{ marginRight: '5px' }} />WEEK</label>
+                            </div>
+
+                            {headerDateFormat === 'date' ? (
+                                <div style={{ display: 'flex', gap: '5px' }}>
+                                    <input type="text" placeholder="Início" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} style={{ width: '50%' }} />
+                                    <input type="text" placeholder="Fim" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} style={{ width: '50%' }} />
+                                </div>
+                            ) : (
+                                <input type="text" placeholder="Semana (ex: 42)" value={customWeek} onChange={e => setCustomWeek(e.target.value)} style={{ width: '100%' }} />
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="config-divider">Cartões de Insights</div>
@@ -278,7 +345,6 @@ const PartsReportPage = () => {
                     </div>
                 ))}
 
-                {/* --- CONFIGURAÇÃO DE RANKING DE MODELOS (RESTAURADO) --- */}
                 <div className="config-divider">Rankings (Modelos)</div>
                 {modelRankings.map((rank) => (
                     <div key={rank.id} className="toggle-item">
@@ -305,6 +371,39 @@ const PartsReportPage = () => {
                     </div>
                 ))}
 
+                <div className="config-divider">Sessão LTP (Ordens em Atraso)</div>
+                <div className="toggle-item">
+                    <div className="toggle-header">
+                        <span>Exibir Sessão LTP</span>
+                        <Toggle active={showLtpSection} onToggle={() => setShowLtpSection(!showLtpSection)} />
+                    </div>
+                    {showLtpSection && (
+                        <div className="toggle-content fade-in">
+                            <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta DA</label>
+                                    <input type="number" value={ltpTargetDA} onChange={e => setLtpTargetDA(e.target.value)} style={{width: '100%'}} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta VD</label>
+                                    <input type="number" value={ltpTargetVD} onChange={e => setLtpTargetVD(e.target.value)} style={{width: '100%'}} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta VD CI</label>
+                                    <input type="number" value={ltpTargetVDCi} onChange={e => setLtpTargetVDCi(e.target.value)} style={{width: '100%'}} />
+                                </div>
+                            </div>
+
+                            <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP VD (OW)</span><Toggle active={ltpFilters.vdOw} onToggle={() => toggleLtpFilter('vdOw')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP VD (LP)</span><Toggle active={ltpFilters.vdLp} onToggle={() => toggleLtpFilter('vdLp')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '5px', marginLeft: '15px', color: '#888'}}><span>↳ LTP VD CI (OW)</span><Toggle active={ltpFilters.vdCiOw} onToggle={() => toggleLtpFilter('vdCiOw')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '10px', marginLeft: '15px', color: '#888'}}><span>↳ LTP VD CI (LP)</span><Toggle active={ltpFilters.vdCiLp} onToggle={() => toggleLtpFilter('vdCiLp')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP DA (OW)</span><Toggle active={ltpFilters.daOw} onToggle={() => toggleLtpFilter('daOw')} /></div>
+                            <div className="sub-toggle"><span>LTP DA (LP)</span><Toggle active={ltpFilters.daLp} onToggle={() => toggleLtpFilter('daLp')} /></div>
+                        </div>
+                    )}
+                </div>
+
                 <button className="btn-generate full-width" onClick={handleExportPDF} style={{marginTop: '20px'}}>
                     BAIXAR RELATÓRIO PDF
                 </button>
@@ -312,14 +411,10 @@ const PartsReportPage = () => {
         )}
       </div>
 
-      {/* --- ÁREA DE PRÉ-VISUALIZAÇÃO (TUDO CENTRALIZADO) --- */}
+      {/* --- ÁREA DE PRÉ-VISUALIZAÇÃO --- */}
       <div className="preview-panel custom-scrollbar" style={{ display: 'flex', justifyContent: 'center' }}>
         {data ? (
-            <div ref={reportRef} className="pdf-sheet" style={{ 
-                background: isLightMode ? '#ffffff' : '#1a1a1a', 
-                color: isLightMode ? '#333' : '#fff',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '900px'
-            }}>
+            <div ref={reportRef} className="pdf-sheet" style={{ background: isLightMode ? '#ffffff' : '#1a1a1a', color: isLightMode ? '#333' : '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '900px' }}>
                 
                 <div className="report-header-modern" style={{ textAlign: 'center', width: '100%' }}>
                     <div>
@@ -327,71 +422,57 @@ const PartsReportPage = () => {
                         <p style={{ color: isLightMode ? '#666' : '#bbb' }}>{reportSubtitle}</p>
                     </div>
                     <div className="header-meta-tags" style={{ justifyContent: 'center' }}>
-                        <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>📅 {data.dateRange.start} - {data.dateRange.end}</span>
-                        <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>⏱ {daysToUse} Dias</span>
+                        {showDateInHeader && (
+                            <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>
+                                📅 {headerDateFormat === 'date' 
+                                    ? `${customStartDate || data.dateRange.start} - ${customEndDate || data.dateRange.end}` 
+                                    : `Semana ${customWeek || '-'}`
+                                }
+                            </span>
+                        )}
+                        {!(showDateInHeader && headerDateFormat === 'week') && (
+                            <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>⏱ {daysToUse} Dias</span>
+                        )}
                     </div>
                 </div>
 
                 <div className="stat-row" style={{ marginTop: '20px', display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
                     {insightsConfig.totalParts && (
-                        <div className="stat-card app-style-card" style={{ 
-                            background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center'
-                        }}>
+                        <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
                             <div className="stat-value" style={{ color: '#00C49F', fontSize: '28px', fontWeight: 'bold' }}>{data.totalPartsUsed}</div>
                             <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>📦 Peças Totais</div>
                         </div>
                     )}
                     {insightsConfig.avgParts && (
-                        <div className="stat-card app-style-card" style={{ 
-                            background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center'
-                        }}>
+                        <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
                             <div className="stat-value" style={{ color: '#FFBB28', fontSize: '28px', fontWeight: 'bold' }}>{(data.totalPartsUsed / daysToUse).toFixed(1)}</div>
                             <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>📈 Média / Dia</div>
                         </div>
                     )}
                     {insightsConfig.topPart && (
-                        <div className="stat-card app-style-card" style={{ 
-                            background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center'
-                        }}>
+                        <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
                             <div className="stat-value" style={{ color: '#FF8042', fontSize: '18px', fontWeight: 'bold', wordBreak: 'break-all' }}>{data.parts[0]?.code || '-'}</div>
                             <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>👑 Top Peça ({data.parts[0]?.count})</div>
                         </div>
                     )}
                 </div>
 
-                {/* --- PÓDIO DE MODELOS (RESTAURADO) --- */}
                 {modelRankings.some(r => r.active) && (
                     <div className="report-section" style={{ width: '100%', marginTop: '30px', textAlign: 'center' }}>
                         <h3 className="section-title" style={{ color: titleColor }}>Rankings de Modelos</h3>
                         <div className="rankings-modern-grid" style={{ display: 'grid', gap: '15px', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
                             {modelRankings.filter(r => r.active).map(rank => {
                                 const rankingData = getModelRankingData(rank);
-                                const medals = [
-                                    { color: '#FFD700', label: '1º Lugar' },
-                                    { color: '#C0C0C0', label: '2º Lugar' },
-                                    { color: '#CD7F32', label: '3º Lugar' }
-                                ];
+                                const medals = [{ color: '#FFD700', label: '1º Lugar' }, { color: '#C0C0C0', label: '2º Lugar' }, { color: '#CD7F32', label: '3º Lugar' }];
 
                                 return (
-                                    <div key={rank.id} className="ranking-container" style={{ 
-                                        background: isLightMode ? '#ffffff' : '#222', border: isLightMode ? '1px solid #eee' : '1px solid #333',
-                                        padding: '15px', borderRadius: '12px'
-                                    }}>
+                                    <div key={rank.id} className="ranking-container" style={{ background: isLightMode ? '#ffffff' : '#222', border: isLightMode ? '1px solid #eee' : '1px solid #333', padding: '15px', borderRadius: '12px' }}>
                                         <h4 style={{margin: '0 0 15px 0', fontSize: '14px', color: titleColor, textAlign: 'center'}}>{rank.title}</h4>
                                         {rankingData.length > 0 ? (
                                             <div className="ranking-grid" style={{ display: 'flex', justifyContent: 'space-around', gap: '10px' }}>
                                                 {rankingData.map((item, idx) => (
-                                                    <div key={idx} className="rank-card" style={{ 
-                                                        borderColor: medals[idx].color, background: isLightMode ? '#f9f9f9' : '#2a2a2a',
-                                                        flex: 1, textAlign: 'center', padding: '10px', borderRadius: '6px',
-                                                        borderTop: `4px solid ${medals[idx].color}`
-                                                    }}>
-                                                        <div className="rank-badge" style={{ backgroundColor: medals[idx].color, color: isLightMode ? '#000' : '#fff', display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', marginBottom: '8px' }}>
-                                                            {medals[idx].label}
-                                                        </div>
+                                                    <div key={idx} className="rank-card" style={{ borderColor: medals[idx].color, background: isLightMode ? '#f9f9f9' : '#2a2a2a', flex: 1, textAlign: 'center', padding: '10px', borderRadius: '6px', borderTop: `4px solid ${medals[idx].color}` }}>
+                                                        <div className="rank-badge" style={{ backgroundColor: medals[idx].color, color: isLightMode ? '#000' : '#fff', display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', marginBottom: '8px' }}>{medals[idx].label}</div>
                                                         <div className="rank-name" style={{ color: isLightMode ? '#000' : '#fff', fontWeight: 'bold', fontSize: '12px' }}>{item.name}</div>
                                                         <div className="rank-value" style={{ color: isLightMode ? '#555' : '#ccc', fontSize: '11px', marginTop: '4px' }}>{item.value} Aparelhos</div>
                                                     </div>
@@ -419,9 +500,7 @@ const PartsReportPage = () => {
                                             <YAxis dataKey="code" type="category" width={110} tick={{fontSize: 11, fill: axisColor, fontWeight: 600}} />
                                             <Tooltip cursor={{fill: isLightMode ? '#f0f0f0' : '#444'}} contentStyle={{ background: tooltipBg, color: tooltipColor, borderRadius: '8px' }} />
                                             <Bar dataKey="count" barSize={18} radius={[0, 4, 4, 0]}>
-                                                {chartData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={['#00C49F', '#FFBB28', '#FF8042', '#0088FE', '#8A2BE2'][index % 5]} />
-                                                ))}
+                                                {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={['#00C49F', '#FFBB28', '#FF8042', '#0088FE', '#8A2BE2'][index % 5]} />)}
                                                 <LabelList dataKey="count" position="right" fill={axisColor} fontSize={11} fontWeight="bold" />
                                             </Bar>
                                         </BarChart>
@@ -461,29 +540,20 @@ const PartsReportPage = () => {
                                 </tbody>
                             </table>
                         </div>
-                        <div style={{marginTop: '10px', fontSize: '10px', color: isLightMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic'}}>
-                            * Exibindo as top {tableRowLimit} peças no período selecionado.
-                        </div>
                     </div>
                 )}
 
-                {/* --- DETALHAMENTO DE ORDENS (SEM DATA E COM ORDEM CORRETA) --- */}
                 {chartsConfig.some(c => c.active && c.showOrders) && (
                     <div className="report-section" style={{ width: '100%', marginTop: '40px', textAlign: 'center' }}>
                         <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Listagem de Ordens (Detalhe)</h3>
-
                         {chartsConfig.filter(c => c.active && c.showOrders).map(chart => {
                             const chartParts = getFilteredPartsData(chart);
                             return (
                                 <div key={chart.id} style={{ marginBottom: '30px', textAlign: 'left', width: '100%', background: isLightMode ? '#f9f9f9' : '#222', padding: '20px', borderRadius: '12px' }}>
-                                    <h4 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px' }}>
-                                        Ordens: {chart.title}
-                                    </h4>
-
+                                    <h4 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px' }}>Ordens: {chart.title}</h4>
                                     {chartParts.map(part => {
                                         const relatedOrders = data.transactions.filter(t => t.partsList && t.partsList.includes(part.code));
                                         if (relatedOrders.length === 0) return null;
-
                                         return (
                                             <div key={part.code} style={{ marginTop: '20px' }}>
                                                 <h5 style={{ color: isLightMode ? '#333' : '#fff', fontSize: '14px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -500,12 +570,8 @@ const PartsReportPage = () => {
                                                         <tbody>
                                                             {relatedOrders.map((order, idx) => (
                                                                 <tr key={idx} style={{ borderTop: isLightMode ? '1px solid #eee' : '1px solid #444' }}>
-                                                                    <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>
-                                                                        {order.osNumber}
-                                                                    </td>
-                                                                    <td style={{ padding: '8px 12px', color: titleColor }}>
-                                                                        {order.model}
-                                                                    </td>
+                                                                    <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>{order.osNumber}</td>
+                                                                    <td style={{ padding: '8px 12px', color: titleColor }}>{order.model}</td>
                                                                 </tr>
                                                             ))}
                                                         </tbody>
@@ -519,6 +585,71 @@ const PartsReportPage = () => {
                         })}
                     </div>
                 )}
+
+                {showLtpSection && Object.values(ltpFilters).some(v => v) && (
+                    <div className="report-section" style={{ width: '100%', marginTop: '40px', textAlign: 'center' }}>
+                        <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Listagem de LTP</h3>
+
+                        {Object.entries({
+                            'LTP VD (OW)': { cat: 'VD', flag: 'OW', active: ltpFilters.vdOw },
+                            'LTP VD (LP)': { cat: 'VD', flag: 'LP', active: ltpFilters.vdLp },
+                            'LTP VD CI (OW)': { cat: 'VD_CI', flag: 'OW', active: ltpFilters.vdCiOw },
+                            'LTP VD CI (LP)': { cat: 'VD_CI', flag: 'LP', active: ltpFilters.vdCiLp },
+                            'LTP DA (OW)': { cat: 'DA', flag: 'OW', active: ltpFilters.daOw },
+                            'LTP DA (LP)': { cat: 'DA', flag: 'LP', active: ltpFilters.daLp },
+                        }).map(([title, config]) => {
+                            if (!config.active) return null;
+                            const ltpData = getLtpOrders(config.cat, config.flag);
+                            if (ltpData.length === 0) return null;
+
+                            return (
+                                <div key={title} style={{ marginBottom: '30px', textAlign: 'left', width: '100%', background: isLightMode ? '#f9f9f9' : '#222', padding: '20px', borderRadius: '12px' }}>
+                                    <h4 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px' }}>
+                                        {title} <span style={{fontSize: '11px', color: '#888'}}>({ltpData.length} ordens)</span>
+                                    </h4>
+
+                                    <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${isLightMode ? '#eee' : '#333'}` }}>
+                                        <table style={{ width: '100%', fontSize: '12px', textAlign: 'left', borderCollapse: 'collapse' }}>
+                                            <thead>
+                                                <tr style={{ background: isLightMode ? '#eee' : '#333' }}>
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Data Sol.</th>
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Data Fim</th>
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Dias</th>
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Ordem de Serviço</th>
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Modelo</th>
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Flag</th>
+                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Serviço</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {ltpData.map((order, idx) => (
+                                                    <tr key={idx} style={{ borderTop: isLightMode ? '1px solid #eee' : '1px solid #444' }}>
+                                                        <td style={{ padding: '8px 12px', color: titleColor }}>
+                                                            {order.solDateObj ? order.solDateObj.toLocaleDateString('pt-BR') : 'N/A'}
+                                                        </td>
+                                                        <td style={{ padding: '8px 12px', color: titleColor }}>
+                                                            {order.finishDateObj ? order.finishDateObj.toLocaleDateString('pt-BR') : 'N/A'}
+                                                        </td>
+                                                        <td style={{ padding: '8px 12px', fontWeight: 'bold', color: '#FF8042' }}>
+                                                            {order.durationDays}
+                                                        </td>
+                                                        <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>
+                                                            {order.osNumber}
+                                                        </td>
+                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.model}</td>
+                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.warrantyFlag}</td>
+                                                        <td style={{ padding: '8px 12px', color: titleColor, fontStyle: 'italic' }}>{order.serviceType}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
             </div>
         ) : (
             <div className="empty-state" style={{textAlign: 'center', color: '#9ca3af', marginTop: '100px'}}>
