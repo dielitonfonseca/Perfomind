@@ -18,6 +18,7 @@ const getCategoryFromModel = (model) => {
 };
 
 const PartsReportPage = () => {
+  const [reportType, setReportType] = useState('PECAS'); // 'PECAS' ou 'LTP_VIVO'
   const [isLightMode, setIsLightMode] = useState(false);
   const [inputText, setInputText] = useState('');
   const [reportTitle, setReportTitle] = useState('Relatório Técnico de Peças');
@@ -61,12 +62,7 @@ const PartsReportPage = () => {
   const [ltpTargetVDCi, setLtpTargetVDCi] = useState(3);
 
   const [ltpFilters, setLtpFilters] = useState({
-      vdOw: true,
-      vdLp: true,
-      daOw: true,
-      daLp: true,
-      vdCiOw: true,
-      vdCiLp: true,
+      vdOw: true, vdLp: true, daOw: true, daLp: true, vdCiOw: true, vdCiLp: true,
   });
 
   const [data, setData] = useState(null);
@@ -98,6 +94,47 @@ const PartsReportPage = () => {
     }
 
     setData(processed);
+  };
+
+  const getLtpVivoData = (categoryGroup) => {
+    if (!data || !data.transactions) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return data.transactions.filter(t => {
+        // Regras de exclusão: Não mostrar Ordens RH nem Ordens OW
+        if (t.serviceType?.includes('RH')) return false;
+        if (t.warrantyFlag?.includes('OW')) return false;
+
+        // Apenas ordens sem data de finalização
+        if (t.finishDateObj || !t.solDateObj) return false;
+
+        const diffTime = today - t.solDateObj;
+        const currentDuration = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        t.currentDuration = currentDuration;
+
+        let target = 0;
+        let isMatch = false;
+
+        // Prazos específicos por categoria
+        if (categoryGroup === 'VD CI' && t.category === 'VD' && t.serviceType?.includes('CI')) {
+            target = 3; isMatch = true;
+        } else if (categoryGroup === 'VD IH' && t.category === 'VD' && t.serviceType?.includes('IH')) {
+            target = 7; isMatch = true;
+        } else if (categoryGroup === 'WSM' && t.category === 'WSM') {
+            target = 5; isMatch = true;
+        } else if (categoryGroup === 'REF' && t.category === 'REF') {
+            target = 5; isMatch = true;
+        } else if (categoryGroup === 'RAC' && t.category === 'RAC') {
+            target = 5; isMatch = true;
+        }
+
+        if (isMatch && currentDuration > target) {
+            t.overdueDays = currentDuration - target;
+            return true;
+        }
+        return false;
+    }).sort((a, b) => b.currentDuration - a.currentDuration);
   };
 
   const updateChartConfig = (id, field, value) => {
@@ -208,7 +245,8 @@ const PartsReportPage = () => {
             heightLeft -= pageHeight;
         }
 
-        const fileName = `${reportTitle}${reportSubtitle ? ' - ' + reportSubtitle : ''}.pdf`;
+        const currentTitle = reportType === 'PECAS' ? reportTitle : 'Ordens LTP em aberto';
+        const fileName = `${currentTitle}${reportSubtitle ? ' - ' + reportSubtitle : ''}.pdf`;
         pdf.save(fileName);
     } catch (err) { console.error(err); }
   };
@@ -239,6 +277,24 @@ const PartsReportPage = () => {
       <div className="config-panel custom-scrollbar">
         <h2 className="config-title">Configuração</h2>
 
+        {/* BOTAO SELETOR DE RELATORIO */}
+        <div className="report-type-selector" style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <button 
+                className={`btn-type ${reportType === 'PECAS' ? 'active' : ''}`}
+                onClick={() => setReportType('PECAS')}
+                style={{ flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer', border: 'none', background: reportType === 'PECAS' ? '#0088FE' : '#444', color: '#fff' }}
+            >
+                Relatório Peças
+            </button>
+            <button 
+                className={`btn-type ${reportType === 'LTP_VIVO' ? 'active' : ''}`}
+                onClick={() => setReportType('LTP_VIVO')}
+                style={{ flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer', border: 'none', background: reportType === 'LTP_VIVO' ? '#0088FE' : '#444', color: '#fff' }}
+            >
+                LTP VIVO
+            </button>
+        </div>
+
         <div className="toggle-item small" style={{ marginBottom: '20px', background: isLightMode ? '#e0e0e0' : '#333' }}>
             <div className="toggle-header">
                 <span style={{ color: isLightMode ? '#333' : '#fff', fontWeight: 'bold' }}>
@@ -248,11 +304,13 @@ const PartsReportPage = () => {
             </div>
         </div>
         
-        <div className="config-group">
-            <label>Cabeçalho do Relatório</label>
-            <input type="text" value={reportTitle} onChange={e => setReportTitle(e.target.value)} style={{marginBottom:'5px', width: '100%'}} />
-            <input type="text" value={reportSubtitle} onChange={e => setReportSubtitle(e.target.value)} style={{width: '100%'}} />
-        </div>
+        {reportType === 'PECAS' && (
+            <div className="config-group">
+                <label>Cabeçalho do Relatório</label>
+                <input type="text" value={reportTitle} onChange={e => setReportTitle(e.target.value)} style={{marginBottom:'5px', width: '100%'}} />
+                <input type="text" value={reportSubtitle} onChange={e => setReportSubtitle(e.target.value)} style={{width: '100%'}} />
+            </div>
+        )}
 
         <div className="config-group">
             <label>Entrada de Dados (Excel)</label>
@@ -260,7 +318,7 @@ const PartsReportPage = () => {
             <button className="btn-generate full-width" onClick={handleProcess}>PROCESSAR DADOS</button>
         </div>
 
-        {data && (
+        {data && reportType === 'PECAS' && (
             <>
                 <div className="config-group">
                     <label>Período Considerado (Dias) *MANUAL*</label>
@@ -408,11 +466,13 @@ const PartsReportPage = () => {
                         </div>
                     )}
                 </div>
-
-                <button className="btn-generate full-width" onClick={handleExportPDF} style={{marginTop: '20px'}}>
-                    BAIXAR RELATÓRIO PDF
-                </button>
             </>
+        )}
+
+        {data && (
+            <button className="btn-generate full-width" onClick={handleExportPDF} style={{marginTop: '20px'}}>
+                BAIXAR RELATÓRIO PDF
+            </button>
         )}
       </div>
 
@@ -420,235 +480,287 @@ const PartsReportPage = () => {
         {data ? (
             <div ref={reportRef} className="pdf-sheet" style={{ background: isLightMode ? '#ffffff' : '#1a1a1a', color: isLightMode ? '#333' : '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '900px' }}>
                 
-                <div className="report-header-modern" style={{ textAlign: 'center', width: '100%' }}>
-                    <div>
-                        <h1 style={{ color: isLightMode ? '#000' : '#fff' }}>{reportTitle}</h1>
-                        <p style={{ color: isLightMode ? '#666' : '#bbb' }}>{reportSubtitle}</p>
-                    </div>
-                    <div className="header-meta-tags" style={{ justifyContent: 'center' }}>
-                        {showDateInHeader && (
-                            <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>
-                                📅 {headerDateFormat === 'date' 
-                                    ? `${customStartDate || data.dateRange.start} - ${customEndDate || data.dateRange.end}` 
-                                    : `Semana ${customWeek || '-'}`
-                                }
-                            </span>
-                        )}
-                        {!(showDateInHeader && headerDateFormat === 'week') && (
-                            <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>⏱ {daysToUse} Dias</span>
-                        )}
-                    </div>
-                </div>
-
-                <div className="stat-row" style={{ marginTop: '20px', display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
-                    {insightsConfig.totalParts && (
-                        <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
-                            <div className="stat-value" style={{ color: '#00C49F', fontSize: '28px', fontWeight: 'bold' }}>{data.totalPartsUsed}</div>
-                            <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>📦 Peças Totais</div>
-                        </div>
-                    )}
-                    {insightsConfig.avgParts && (
-                        <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
-                            <div className="stat-value" style={{ color: '#FFBB28', fontSize: '28px', fontWeight: 'bold' }}>{(data.totalPartsUsed / daysToUse).toFixed(1)}</div>
-                            <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>📈 Média / Dia</div>
-                        </div>
-                    )}
-                    {insightsConfig.topPart && (
-                        <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
-                            <div className="stat-value" style={{ color: '#FF8042', fontSize: '18px', fontWeight: 'bold', wordBreak: 'break-all' }}>{data.parts[0]?.code || '-'}</div>
-                            <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>👑 Top Peça ({data.parts[0]?.count})</div>
-                        </div>
-                    )}
-                </div>
-
-                {/* --- PÓDIO DE MODELOS (100% VERTICAL E SEM FUNDO NO MODO CLARO) --- */}
-                {modelRankings.some(r => r.active) && (
-                    <div className="report-section" style={{ width: '100%', marginTop: '30px', textAlign: 'center' }}>
-                        <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Rankings de Modelos</h3>
-                        
-                        {/* Container principal forçando layout em coluna (um em cima do outro) */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', width: '100%' }}>
-                            {modelRankings.filter(r => r.active).map(rank => {
-                                const rankingData = getModelRankingData(rank);
-                                const medals = [{ color: '#FFD700', label: '1º Lugar' }, { color: '#C0C0C0', label: '2º Lugar' }, { color: '#CD7F32', label: '3º Lugar' }];
-
-                                return (
-                                    /* Condicional: Sem fundo/borda no Modo Claro, mantém o fundo escuro no Modo Padrão */
-                                    <div key={rank.id} style={{ 
-                                        padding: isLightMode ? '0' : '15px', 
-                                        background: isLightMode ? 'transparent' : '#252830', 
-                                        border: isLightMode ? 'none' : '1px solid #444',
-                                        borderRadius: '8px',
-                                        width: '100%'
-                                    }}>
-                                        <h4 style={{margin: '0 0 10px 0', fontSize: '14px', color: titleColor, textAlign: 'center', textTransform: 'uppercase'}}>{rank.title}</h4>
-                                        {rankingData.length > 0 ? (
-                                            <div className="ranking-grid" style={{ display: 'flex', justifyContent: 'space-around', gap: '10px' }}>
-                                                {rankingData.map((item, idx) => (
-                                                    <div key={idx} className="rank-card" style={{ borderColor: medals[idx].color, background: isLightMode ? '#f9f9f9' : '#2a2a2a', flex: 1, textAlign: 'center', padding: '10px', borderRadius: '6px', borderTop: `4px solid ${medals[idx].color}` }}>
-                                                        <div className="rank-badge" style={{ backgroundColor: medals[idx].color, color: isLightMode ? '#000' : '#fff', display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', marginBottom: '8px' }}>{medals[idx].label}</div>
-                                                        <div className="rank-name" style={{ color: isLightMode ? '#000' : '#fff', fontWeight: 'bold', fontSize: '12px' }}>{item.name}</div>
-                                                        <div className="rank-value" style={{ color: isLightMode ? '#555' : '#ccc', fontSize: '11px', marginTop: '4px' }}>{item.value} Aparelhos</div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : <p style={{fontSize:'12px', color:'#999', textAlign: 'center'}}>Sem dados para exibir.</p>}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                <div className="report-section" style={{ width: '100%', marginTop: '30px' }}>
-                    {chartsConfig.filter(c => c.active).map((chart) => {
-                        const chartData = getFilteredPartsData(chart);
-                        return (
-                            <div key={chart.id} style={{ marginBottom: '40px', pageBreakInside: 'avoid', textAlign: 'center' }}>
-                                <h3 className="section-title" style={{ color: titleColor, marginBottom: '15px' }}>{chart.title}</h3>
-                                <div className="pdf-chart-item" style={{ background: isLightMode ? '#ffffff' : '#222', border: isLightMode ? '1px solid #eee' : '1px solid #333', padding: '15px', borderRadius: '12px', width: '100%' }}>
-                                    <ResponsiveContainer width="100%" height={60 + (chartData.length * 40)}>
-                                        <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={gridColor} />
-                                            <XAxis type="number" hide />
-                                            <YAxis dataKey="code" type="category" width={110} tick={{fontSize: 11, fill: axisColor, fontWeight: 600}} />
-                                            <Tooltip cursor={{fill: isLightMode ? '#f0f0f0' : '#444'}} contentStyle={{ background: tooltipBg, color: tooltipColor, borderRadius: '8px' }} />
-                                            <Bar dataKey="count" barSize={18} radius={[0, 4, 4, 0]}>
-                                                {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={['#00C49F', '#FFBB28', '#FF8042', '#0088FE', '#8A2BE2'][index % 5]} />)}
-                                                <LabelList dataKey="count" position="right" fill={axisColor} fontSize={11} fontWeight="bold" />
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
+                {reportType === 'PECAS' ? (
+                    <>
+                        <div className="report-header-modern" style={{ textAlign: 'center', width: '100%' }}>
+                            <div>
+                                <h1 style={{ color: isLightMode ? '#000' : '#fff' }}>{reportTitle}</h1>
+                                <p style={{ color: isLightMode ? '#666' : '#bbb' }}>{reportSubtitle}</p>
                             </div>
-                        );
-                    })}
-                </div>
-
-                {showGeneralTable && (
-                    <div className="report-section" style={{ width: '100%', textAlign: 'center' }}>
-                        <h3 className="section-title" style={{ color: titleColor }}>Detalhamento de Peças</h3>
-                        <div style={{ overflowX: 'auto', width: '100%' }}>
-                            <table className="styled-table-modern" style={{ width: '100%', textAlign: 'center' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: isLightMode ? '2px solid #ddd' : '2px solid #444' }}>
-                                        <th style={{width: '40px', color: axisColor, textAlign: 'center'}}>#</th>
-                                        <th style={{width: '120px', color: axisColor, textAlign: 'center'}}>Código</th>
-                                        <th style={{width: '100px', color: axisColor, textAlign: 'center'}}>Categoria</th>
-                                        <th style={{ color: axisColor, textAlign: 'center' }}>Descrição</th>
-                                        <th style={{width: '80px', color: axisColor, textAlign: 'center'}}>Qtd.</th>
-                                        <th style={{width: '100px', color: axisColor, textAlign: 'center'}}>{getConsumptionLabel()}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.parts.slice(0, tableRowLimit).map((item, index) => (
-                                        <tr key={index} style={{ borderBottom: isLightMode ? '1px solid #eee' : '1px solid #333' }}>
-                                            <td style={{fontWeight: 'bold', color: isLightMode ? '#9ca3af' : '#6b7280'}}>{index + 1}</td>
-                                            <td style={{fontFamily: 'monospace', fontWeight: 600, color: titleColor}}>{item.code}</td>
-                                            <td><span className="badge-category" style={{ background: isLightMode ? '#f0f0f0' : '#333', color: isLightMode ? '#555' : '#ccc', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>{item.category}</span></td>
-                                            <td style={{ color: titleColor }} title={item.desc}>{item.desc.length > 24 ? `${item.desc.slice(0, 24)}...` : item.desc}</td>
-                                            <td style={{fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa'}}>{item.count}</td>
-                                            <td style={{color: titleColor}}>{getConsumptionValue(item.count)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            <div className="header-meta-tags" style={{ justifyContent: 'center' }}>
+                                {showDateInHeader && (
+                                    <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>
+                                        📅 {headerDateFormat === 'date' 
+                                            ? `${customStartDate || data.dateRange.start} - ${customEndDate || data.dateRange.end}` 
+                                            : `Semana ${customWeek || '-'}`
+                                        }
+                                    </span>
+                                )}
+                                {!(showDateInHeader && headerDateFormat === 'week') && (
+                                    <span className="meta-tag" style={{ background: isLightMode ? '#d1d1d1' : '#333', color: isLightMode ? '#333' : '#ccc' }}>⏱ {daysToUse} Dias</span>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                )}
 
-                {chartsConfig.some(c => c.active && c.showOrders) && (
-                    <div className="report-section" style={{ width: '100%', marginTop: '40px', textAlign: 'center' }}>
-                        <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Listagem de Ordens (Detalhe)</h3>
-                        {chartsConfig.filter(c => c.active && c.showOrders).map(chart => {
-                            const chartParts = getFilteredPartsData(chart);
-                            return (
-                                <div key={chart.id} style={{ marginBottom: '30px', textAlign: 'left', width: '100%', background: isLightMode ? '#f9f9f9' : '#222', padding: '20px', borderRadius: '12px' }}>
-                                    <h4 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px' }}>Ordens: {chart.title}</h4>
-                                    {chartParts.map(part => {
-                                        const relatedOrders = data.transactions.filter(t => t.partsList && t.partsList.includes(part.code));
-                                        if (relatedOrders.length === 0) return null;
+                        <div className="stat-row" style={{ marginTop: '20px', display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
+                            {insightsConfig.totalParts && (
+                                <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
+                                    <div className="stat-value" style={{ color: '#00C49F', fontSize: '28px', fontWeight: 'bold' }}>{data.totalPartsUsed}</div>
+                                    <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>📦 Peças Totais</div>
+                                </div>
+                            )}
+                            {insightsConfig.avgParts && (
+                                <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
+                                    <div className="stat-value" style={{ color: '#FFBB28', fontSize: '28px', fontWeight: 'bold' }}>{(data.totalPartsUsed / daysToUse).toFixed(1)}</div>
+                                    <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>📈 Média / Dia</div>
+                                </div>
+                            )}
+                            {insightsConfig.topPart && (
+                                <div className="stat-card app-style-card" style={{ background: isLightMode ? '#fff' : '#222', border: `1px solid ${isLightMode ? '#eee' : '#333'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', borderRadius: '16px', padding: '20px', minWidth: '150px', textAlign: 'center' }}>
+                                    <div className="stat-value" style={{ color: '#FF8042', fontSize: '18px', fontWeight: 'bold', wordBreak: 'break-all' }}>{data.parts[0]?.code || '-'}</div>
+                                    <div className="stat-label" style={{ color: isLightMode ? '#777' : '#aaa', fontSize: '13px', marginTop: '5px', fontWeight: '500' }}>👑 Top Peça ({data.parts[0]?.count})</div>
+                                </div>
+                            )}
+                        </div>
+
+                        {modelRankings.some(r => r.active) && (
+                            <div className="report-section" style={{ width: '100%', marginTop: '30px', textAlign: 'center' }}>
+                                <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Rankings de Modelos</h3>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', width: '100%' }}>
+                                    {modelRankings.filter(r => r.active).map(rank => {
+                                        const rankingData = getModelRankingData(rank);
+                                        const medals = [{ color: '#FFD700', label: '1º Lugar' }, { color: '#C0C0C0', label: '2º Lugar' }, { color: '#CD7F32', label: '3º Lugar' }];
+
                                         return (
-                                            <div key={part.code} style={{ marginTop: '20px' }}>
-                                                <h5 style={{ color: isLightMode ? '#333' : '#fff', fontSize: '14px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span style={{color: '#0088FE'}}>●</span> {part.code} - {part.desc} <span style={{fontSize: '11px', color: '#888'}}>({relatedOrders.length} ordens)</span>
-                                                </h5>
-                                                <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${isLightMode ? '#eee' : '#333'}` }}>
-                                                    <table style={{ width: '100%', fontSize: '12px', textAlign: 'left', borderCollapse: 'collapse' }}>
-                                                        <thead>
-                                                            <tr style={{ background: isLightMode ? '#eee' : '#333' }}>
-                                                                <th style={{ color: axisColor, padding: '8px 12px' }}>Ordem de Serviço</th>
-                                                                <th style={{ color: axisColor, padding: '8px 12px' }}>Modelo</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {relatedOrders.map((order, idx) => (
-                                                                <tr key={idx} style={{ borderTop: isLightMode ? '1px solid #eee' : '1px solid #444' }}>
-                                                                    <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>{order.osNumber}</td>
-                                                                    <td style={{ padding: '8px 12px', color: titleColor }}>{order.model}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
+                                            <div key={rank.id} style={{ 
+                                                padding: isLightMode ? '0' : '15px', 
+                                                background: isLightMode ? 'transparent' : '#252830', 
+                                                border: isLightMode ? 'none' : '1px solid #444',
+                                                borderRadius: '8px',
+                                                width: '100%'
+                                            }}>
+                                                <h4 style={{margin: '0 0 10px 0', fontSize: '14px', color: titleColor, textAlign: 'center', textTransform: 'uppercase'}}>{rank.title}</h4>
+                                                {rankingData.length > 0 ? (
+                                                    <div className="ranking-grid" style={{ display: 'flex', justifyContent: 'space-around', gap: '10px' }}>
+                                                        {rankingData.map((item, idx) => (
+                                                            <div key={idx} className="rank-card" style={{ borderColor: medals[idx].color, background: isLightMode ? '#f9f9f9' : '#2a2a2a', flex: 1, textAlign: 'center', padding: '10px', borderRadius: '6px', borderTop: `4px solid ${medals[idx].color}` }}>
+                                                                <div className="rank-badge" style={{ backgroundColor: medals[idx].color, color: isLightMode ? '#000' : '#fff', display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', marginBottom: '8px' }}>{medals[idx].label}</div>
+                                                                <div className="rank-name" style={{ color: isLightMode ? '#000' : '#fff', fontWeight: 'bold', fontSize: '12px' }}>{item.name}</div>
+                                                                <div className="rank-value" style={{ color: isLightMode ? '#555' : '#ccc', fontSize: '11px', marginTop: '4px' }}>{item.value} Aparelhos</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : <p style={{fontSize:'12px', color:'#999', textAlign: 'center'}}>Sem dados para exibir.</p>}
                                             </div>
                                         );
                                     })}
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
+                            </div>
+                        )}
 
-                {showLtpSection && Object.values(ltpFilters).some(v => v) && (
-                    <div className="report-section" style={{ width: '100%', marginTop: '40px', textAlign: 'center' }}>
-                        <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Listagem de LTP</h3>
+                        <div className="report-section" style={{ width: '100%', marginTop: '30px' }}>
+                            {chartsConfig.filter(c => c.active).map((chart) => {
+                                const chartData = getFilteredPartsData(chart);
+                                return (
+                                    <div key={chart.id} style={{ marginBottom: '40px', pageBreakInside: 'avoid', textAlign: 'center' }}>
+                                        <h3 className="section-title" style={{ color: titleColor, marginBottom: '15px' }}>{chart.title}</h3>
+                                        <div className="pdf-chart-item" style={{ background: isLightMode ? '#ffffff' : '#222', border: isLightMode ? '1px solid #eee' : '1px solid #333', padding: '15px', borderRadius: '12px', width: '100%' }}>
+                                            <ResponsiveContainer width="100%" height={60 + (chartData.length * 40)}>
+                                                <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={gridColor} />
+                                                    <XAxis type="number" hide />
+                                                    <YAxis dataKey="code" type="category" width={110} tick={{fontSize: 11, fill: axisColor, fontWeight: 600}} />
+                                                    <Tooltip cursor={{fill: isLightMode ? '#f0f0f0' : '#444'}} contentStyle={{ background: tooltipBg, color: tooltipColor, borderRadius: '8px' }} />
+                                                    <Bar dataKey="count" barSize={18} radius={[0, 4, 4, 0]}>
+                                                        {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={['#00C49F', '#FFBB28', '#FF8042', '#0088FE', '#8A2BE2'][index % 5]} />)}
+                                                        <LabelList dataKey="count" position="right" fill={axisColor} fontSize={11} fontWeight="bold" />
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
 
-                        {Object.entries({
-                            'LTP VD (OW)': { cat: 'VD', flag: 'OW', active: ltpFilters.vdOw },
-                            'LTP VD (LP)': { cat: 'VD', flag: 'LP', active: ltpFilters.vdLp },
-                            'LTP VD CI (OW)': { cat: 'VD_CI', flag: 'OW', active: ltpFilters.vdCiOw },
-                            'LTP VD CI (LP)': { cat: 'VD_CI', flag: 'LP', active: ltpFilters.vdCiLp },
-                            'LTP DA (OW)': { cat: 'DA', flag: 'OW', active: ltpFilters.daOw },
-                            'LTP DA (LP)': { cat: 'DA', flag: 'LP', active: ltpFilters.daLp },
-                        }).map(([title, config]) => {
-                            if (!config.active) return null;
-                            const ltpData = getLtpOrders(config.cat, config.flag);
-                            if (ltpData.length === 0) return null;
+                        {showGeneralTable && (
+                            <div className="report-section" style={{ width: '100%', textAlign: 'center' }}>
+                                <h3 className="section-title" style={{ color: titleColor }}>Detalhamento de Peças</h3>
+                                <div style={{ overflowX: 'auto', width: '100%' }}>
+                                    <table className="styled-table-modern" style={{ width: '100%', textAlign: 'center' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: isLightMode ? '2px solid #ddd' : '2px solid #444' }}>
+                                                <th style={{width: '40px', color: axisColor, textAlign: 'center'}}>#</th>
+                                                <th style={{width: '120px', color: axisColor, textAlign: 'center'}}>Código</th>
+                                                <th style={{width: '100px', color: axisColor, textAlign: 'center'}}>Categoria</th>
+                                                <th style={{ color: axisColor, textAlign: 'center' }}>Descrição</th>
+                                                <th style={{width: '80px', color: axisColor, textAlign: 'center'}}>Qtd.</th>
+                                                <th style={{width: '100px', color: axisColor, textAlign: 'center'}}>{getConsumptionLabel()}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {data.parts.slice(0, tableRowLimit).map((item, index) => (
+                                                <tr key={index} style={{ borderBottom: isLightMode ? '1px solid #eee' : '1px solid #333' }}>
+                                                    <td style={{fontWeight: 'bold', color: isLightMode ? '#9ca3af' : '#6b7280'}}>{index + 1}</td>
+                                                    <td style={{fontFamily: 'monospace', fontWeight: 600, color: titleColor}}>{item.code}</td>
+                                                    <td><span className="badge-category" style={{ background: isLightMode ? '#f0f0f0' : '#333', color: isLightMode ? '#555' : '#ccc', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>{item.category}</span></td>
+                                                    <td style={{ color: titleColor }} title={item.desc}>{item.desc.length > 24 ? `${item.desc.slice(0, 24)}...` : item.desc}</td>
+                                                    <td style={{fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa'}}>{item.count}</td>
+                                                    <td style={{color: titleColor}}>{getConsumptionValue(item.count)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
 
-                            const totalOverdue = ltpData.reduce((acc, order) => acc + order.overdueDays, 0);
+                        {chartsConfig.some(c => c.active && c.showOrders) && (
+                            <div className="report-section" style={{ width: '100%', marginTop: '40px', textAlign: 'center' }}>
+                                <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Listagem de Ordens (Detalhe)</h3>
+                                {chartsConfig.filter(c => c.active && c.showOrders).map(chart => {
+                                    const chartParts = getFilteredPartsData(chart);
+                                    return (
+                                        <div key={chart.id} style={{ marginBottom: '30px', textAlign: 'left', width: '100%', background: isLightMode ? '#f9f9f9' : '#222', padding: '20px', borderRadius: '12px' }}>
+                                            <h4 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px' }}>Ordens: {chart.title}</h4>
+                                            {chartParts.map(part => {
+                                                const relatedOrders = data.transactions.filter(t => t.partsList && t.partsList.includes(part.code));
+                                                if (relatedOrders.length === 0) return null;
+                                                return (
+                                                    <div key={part.code} style={{ marginTop: '20px' }}>
+                                                        <h5 style={{ color: isLightMode ? '#333' : '#fff', fontSize: '14px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span style={{color: '#0088FE'}}>●</span> {part.code} - {part.desc} <span style={{fontSize: '11px', color: '#888'}}>({relatedOrders.length} ordens)</span>
+                                                        </h5>
+                                                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${isLightMode ? '#eee' : '#333'}` }}>
+                                                            <table style={{ width: '100%', fontSize: '12px', textAlign: 'left', borderCollapse: 'collapse' }}>
+                                                                <thead>
+                                                                    <tr style={{ background: isLightMode ? '#eee' : '#333' }}>
+                                                                        <th style={{ color: axisColor, padding: '8px 12px' }}>Ordem de Serviço</th>
+                                                                        <th style={{ color: axisColor, padding: '8px 12px' }}>Modelo</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {relatedOrders.map((order, idx) => (
+                                                                        <tr key={idx} style={{ borderTop: isLightMode ? '1px solid #eee' : '1px solid #444' }}>
+                                                                            <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>{order.osNumber}</td>
+                                                                            <td style={{ padding: '8px 12px', color: titleColor }}>{order.model}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {showLtpSection && Object.values(ltpFilters).some(v => v) && (
+                            <div className="report-section" style={{ width: '100%', marginTop: '40px', textAlign: 'center' }}>
+                                <h3 className="section-title" style={{ color: titleColor, marginBottom: '20px' }}>Listagem de LTP</h3>
+
+                                {Object.entries({
+                                    'LTP VD (OW)': { cat: 'VD', flag: 'OW', active: ltpFilters.vdOw },
+                                    'LTP VD (LP)': { cat: 'VD', flag: 'LP', active: ltpFilters.vdLp },
+                                    'LTP VD CI (OW)': { cat: 'VD_CI', flag: 'OW', active: ltpFilters.vdCiOw },
+                                    'LTP VD CI (LP)': { cat: 'VD_CI', flag: 'LP', active: ltpFilters.vdCiLp },
+                                    'LTP DA (OW)': { cat: 'DA', flag: 'OW', active: ltpFilters.daOw },
+                                    'LTP DA (LP)': { cat: 'DA', flag: 'LP', active: ltpFilters.daLp },
+                                }).map(([title, config]) => {
+                                    if (!config.active) return null;
+                                    const ltpData = getLtpOrders(config.cat, config.flag);
+                                    if (ltpData.length === 0) return null;
+
+                                    const totalOverdue = ltpData.reduce((acc, order) => acc + order.overdueDays, 0);
+
+                                    return (
+                                        <div key={title} style={{ marginBottom: '30px', textAlign: 'left', width: '100%', background: isLightMode ? '#f9f9f9' : '#222', padding: '20px', borderRadius: '12px' }}>
+                                            <h4 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px' }}>
+                                                {title} 
+                                                <span style={{fontSize: '11px', color: '#888', marginLeft: '5px'}}>({ltpData.length} ordens)</span>
+                                                <span style={{fontSize: '11px', color: '#FF8042', marginLeft: '10px', fontWeight: 'bold'}}>Total QTD: {totalOverdue} dias</span>
+                                            </h4>
+
+                                            <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${isLightMode ? '#eee' : '#333'}` }}>
+                                                <table style={{ width: '100%', fontSize: '12px', textAlign: 'left', borderCollapse: 'collapse' }}>
+                                                    <thead>
+                                                        <tr style={{ background: isLightMode ? '#eee' : '#333' }}>
+                                                            <th style={{ color: axisColor, padding: '8px 12px' }}>Data Sol.</th>
+                                                            <th style={{ color: axisColor, padding: '8px 12px' }}>Data Fim</th>
+                                                            <th style={{ color: axisColor, padding: '8px 12px' }}>Dias</th>
+                                                            <th style={{ color: axisColor, padding: '8px 12px' }}>QTD</th> 
+                                                            <th style={{ color: axisColor, padding: '8px 12px' }}>OS</th>
+                                                            <th style={{ color: axisColor, padding: '8px 12px' }}>Modelo</th>
+                                                            <th style={{ color: axisColor, padding: '8px 12px' }}>Serviço</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {ltpData.map((order, idx) => (
+                                                            <tr key={idx} style={{ borderTop: isLightMode ? '1px solid #eee' : '1px solid #444' }}>
+                                                                <td style={{ padding: '8px 12px', color: titleColor }}>{order.solDateObj ? order.solDateObj.toLocaleDateString('pt-BR') : 'N/A'}</td>
+                                                                <td style={{ padding: '8px 12px', color: titleColor }}>{order.finishDateObj ? order.finishDateObj.toLocaleDateString('pt-BR') : 'N/A'}</td>
+                                                                <td style={{ padding: '8px 12px', color: titleColor }}>{order.durationDays}</td>
+                                                                <td style={{ padding: '8px 12px', fontWeight: 'bold', color: '#FF8042' }}>+{order.overdueDays}</td> 
+                                                                <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>{order.osNumber}</td>
+                                                                <td style={{ padding: '8px 12px', color: titleColor }}>{order.model}</td>
+                                                                <td style={{ padding: '8px 12px', color: titleColor, fontStyle: 'italic' }}>{order.serviceType}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    /* LAYOUT LTP VIVO */
+                    <div style={{ width: '100%', padding: '20px' }}>
+                        <div className="report-header-modern" style={{ textAlign: 'center', width: '100%', marginBottom: '30px' }}>
+                            <h1 style={{ color: isLightMode ? '#000' : '#fff' }}>Ordens LTP em aberto</h1>
+                            <p style={{ color: isLightMode ? '#666' : '#bbb' }}>Análise de pendências em {new Date().toLocaleDateString('pt-BR')}</p>
+                        </div>
+
+                        {['WSM', 'REF', 'RAC', 'VD CI', 'VD IH'].map(cat => {
+                            const ltpOrders = getLtpVivoData(cat);
+                            if (ltpOrders.length === 0) return null;
+
+                            const totalOverdue = ltpOrders.reduce((acc, order) => acc + order.overdueDays, 0);
 
                             return (
-                                <div key={title} style={{ marginBottom: '30px', textAlign: 'left', width: '100%', background: isLightMode ? '#f9f9f9' : '#222', padding: '20px', borderRadius: '12px' }}>
-                                    <h4 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px' }}>
-                                        {title} 
-                                        <span style={{fontSize: '11px', color: '#888', marginLeft: '5px'}}>({ltpData.length} ordens)</span>
-                                        <span style={{fontSize: '11px', color: '#FF8042', marginLeft: '10px', fontWeight: 'bold'}}>Total QTD: {totalOverdue} dias</span>
-                                    </h4>
-
+                                <div key={cat} className="report-section" style={{ width: '100%', marginTop: '30px' }}>
+                                    <h3 style={{ color: titleColor, borderBottom: `2px solid ${gridColor}`, paddingBottom: '10px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>{cat} ({ltpOrders.length} ordens)</span>
+                                        <span style={{ color: '#FF8042' }}>Soma QTD: {totalOverdue} dias</span>
+                                    </h3>
+                                    
                                     <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${isLightMode ? '#eee' : '#333'}` }}>
-                                        <table style={{ width: '100%', fontSize: '12px', textAlign: 'left', borderCollapse: 'collapse' }}>
+                                        <table className="styled-table-modern" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
                                             <thead>
                                                 <tr style={{ background: isLightMode ? '#eee' : '#333' }}>
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Data Sol.</th>
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Data Fim</th>
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Dias</th>
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>QTD</th> 
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>OS</th>
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Modelo</th>
-                                                    <th style={{ color: axisColor, padding: '8px 12px' }}>Serviço</th>
+                                                    <th style={{ color: axisColor, padding: '10px' }}>Data Sol.</th>
+                                                    <th style={{ color: axisColor, padding: '10px' }}>Dias</th>
+                                                    <th style={{ color: axisColor, padding: '10px' }}>QTD</th> 
+                                                    <th style={{ color: axisColor, padding: '10px' }}>OS</th>
+                                                    <th style={{ color: axisColor, padding: '10px' }}>Modelo</th>
+                                                    <th style={{ color: axisColor, padding: '10px' }}>Serviço</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {ltpData.map((order, idx) => (
+                                                {ltpOrders.map((order, idx) => (
                                                     <tr key={idx} style={{ borderTop: isLightMode ? '1px solid #eee' : '1px solid #444' }}>
-                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.solDateObj ? order.solDateObj.toLocaleDateString('pt-BR') : 'N/A'}</td>
-                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.finishDateObj ? order.finishDateObj.toLocaleDateString('pt-BR') : 'N/A'}</td>
-                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.durationDays}</td>
-                                                        <td style={{ padding: '8px 12px', fontWeight: 'bold', color: '#FF8042' }}>+{order.overdueDays}</td> 
-                                                        <td style={{ padding: '8px 12px', fontWeight: 'bold', color: isLightMode ? '#0088FE' : '#60a5fa' }}>{order.osNumber}</td>
-                                                        <td style={{ padding: '8px 12px', color: titleColor }}>{order.model}</td>
-                                                        <td style={{ padding: '8px 12px', color: titleColor, fontStyle: 'italic' }}>{order.serviceType}</td>
+                                                        <td style={{ padding: '10px', color: titleColor }}>{order.solDateObj?.toLocaleDateString('pt-BR') || 'N/A'}</td>
+                                                        <td style={{ padding: '10px', color: titleColor }}>{order.currentDuration}</td>
+                                                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#FF8042' }}>+{order.overdueDays}</td> 
+                                                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#0088FE' }}>{order.osNumber}</td>
+                                                        <td style={{ padding: '10px', color: titleColor }}>{order.model}</td>
+                                                        <td style={{ padding: '10px', color: titleColor, fontStyle: 'italic' }}>{order.serviceType}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>

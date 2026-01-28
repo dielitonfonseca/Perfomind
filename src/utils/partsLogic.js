@@ -12,7 +12,7 @@ export const processPartsData = (inputText) => {
     const osIdx = headers.findIndex(h => h.includes('so nro') || h.includes('os') || h.includes('ordem'));
     const modelIdx = headers.findIndex(h => h.includes('modelo') || h.includes('model'));
 
-    // --- NOVO: Coluna TIPO DE SERVIÇO ---
+    // --- Coluna TIPO DE SERVIÇO ---
     const serviceTypeIdx = headers.findIndex(h => h.includes('tipo de servi') || h.includes('service type'));
 
     // --- Colunas de LTP ---
@@ -110,7 +110,7 @@ export const processPartsData = (inputText) => {
             partsList: usedPartsInRow,
             hasParts: usedPartsInRow.length > 0,
             category: 'OUTROS',
-            serviceType: rowServiceType, // --- NOVO CAMPO ENVIADO AO REACT ---
+            serviceType: rowServiceType, 
             solDateObj: solDate,
             finishDateObj: finishDate,
             durationDays: durationDays,
