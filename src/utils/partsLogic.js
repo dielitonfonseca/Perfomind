@@ -8,21 +8,14 @@ export const processPartsData = (inputText) => {
     const rows = inputText.trim().split('\n').map(row => row.split('\t'));
     const headers = rows[0].map(h => h.trim().toLowerCase());
 
-    // --- Colunas Originais ---
     const osIdx = headers.findIndex(h => h.includes('so nro') || h.includes('os') || h.includes('ordem'));
     const modelIdx = headers.findIndex(h => h.includes('modelo') || h.includes('model'));
-
-    // --- Coluna TIPO DE SERVIÇO ---
     const serviceTypeIdx = headers.findIndex(h => h.includes('tipo de servi') || h.includes('service type'));
-
-    // --- Colunas de LTP ---
     const solDateIdx = headers.findIndex(h => h.includes('solicita')); 
     const finishDateIdx = headers.findIndex(h => h.includes('reparo finalizado')); 
     const warrantyIdx = headers.findIndex(h => h.includes('warranty') || h.includes('garantia'));
-
     const dateIdx = headers.findIndex(h => h.includes('data') && !h.includes('solicita') && !h.includes('reparo'));
 
-    // Identificar pares de colunas de Peças
     const partColumns = [];
     for (let i = 1; i <= 20; i++) {
         const numStr = i.toString().padStart(2, '0');
@@ -61,11 +54,8 @@ export const processPartsData = (inputText) => {
         const rowDateStr = dateIdx !== -1 ? row[dateIdx] : null;
         const rowModel = modelIdx !== -1 ? (row[modelIdx] || 'OUTROS') : 'OUTROS';
         const rowOS = osIdx !== -1 ? row[osIdx] : `N/A`;
-        
-        // --- Captura o Tipo de Serviço ---
         const rowServiceType = serviceTypeIdx !== -1 ? row[serviceTypeIdx].toUpperCase().trim() : 'OUTROS';
 
-        // --- LÓGICA DE LTP: Captura e Cálculo ---
         const solDateStr = solDateIdx !== -1 ? row[solDateIdx] : null;
         const finishDateStr = finishDateIdx !== -1 ? row[finishDateIdx] : null;
         const warrantyFlag = warrantyIdx !== -1 ? row[warrantyIdx] : 'N/A';

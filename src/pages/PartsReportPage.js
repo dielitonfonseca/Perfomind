@@ -13,6 +13,8 @@ const getCategoryFromModel = (model) => {
     if (m.startsWith('RT') || m.startsWith('RF') || m.startsWith('RS') || m.startsWith('RL')) return 'REF';
     if (m.startsWith('AR')) return 'RAC';
     if (m.startsWith('QN') || m.startsWith('UN') || m.startsWith('LH') || m.startsWith('LS')) return 'VD';
+    if (m.startsWith('NP')) return 'NPC';
+    if (m.startsWith('SM')) return 'MX';
     
     return 'OUTROS';
 };
@@ -46,7 +48,9 @@ const PartsReportPage = () => {
     { id: 2, active: true, title: 'Top Peças WSM', category: 'WSM', limit: 5, showOrders: false },
     { id: 3, active: true, title: 'Top Peças REF', category: 'REF', limit: 5, showOrders: false },
     { id: 4, active: true, title: 'Top Peças RAC', category: 'RAC', limit: 5, showOrders: false },
-    { id: 5, active: false, title: 'Top Peças (Geral)', category: 'TODOS', limit: 5, showOrders: false },
+    { id: 5, active: true, title: 'Top Peças NPC', category: 'NPC', limit: 5, showOrders: false },
+    { id: 6, active: true, title: 'Top Peças MX', category: 'MX', limit: 5, showOrders: false },
+    { id: 7, active: false, title: 'Top Peças (Geral)', category: 'TODOS', limit: 5, showOrders: false },
   ]);
 
   const [modelRankings, setModelRankings] = useState([
@@ -54,6 +58,8 @@ const PartsReportPage = () => {
     { id: 2, active: false, title: 'Top Modelos (VD)', category: 'VD', onlyWithParts: true },
     { id: 3, active: false, title: 'Top Modelos (Linha Branca)', category: 'WSM', onlyWithParts: true },
     { id: 4, active: false, title: 'Top Modelos (RAC)', category: 'RAC', onlyWithParts: true },
+    { id: 5, active: false, title: 'Top Modelos (NPC)', category: 'NPC', onlyWithParts: true },
+    { id: 6, active: false, title: 'Top Modelos (MX)', category: 'MX', onlyWithParts: true },
   ]);
 
   const [showLtpSection, setShowLtpSection] = useState(false);
@@ -96,17 +102,59 @@ const PartsReportPage = () => {
     setData(processed);
   };
 
+  const handleDownloadPartsSummary = () => {
+    if (!data || !data.transactions) return;
+
+    const categories = ['VD', 'WSM', 'REF', 'RAC', 'NPC', 'MX'];
+    const guaranteeTypes = ['LP', 'OW'];
+    let output = "RESUMO DE CONSUMO POR LINHA E GARANTIA\n\n";
+
+    categories.forEach(cat => {
+        guaranteeTypes.forEach(guar => {
+            const partsInGroup = {};
+            
+            data.transactions.forEach(t => {
+                if (t.category === cat && t.warrantyFlag === guar) {
+                    t.partsList.forEach(pCode => {
+                        partsInGroup[pCode] = (partsInGroup[pCode] || 0) + 1;
+                    });
+                }
+            });
+
+            const sortedParts = Object.entries(partsInGroup).sort((a, b) => b[1] - a[1]);
+
+            // Adicionado \n\n após o título da categoria e garantia
+            output += `${cat} ${guar}:\n\n`; 
+            
+            if (sortedParts.length > 0) {
+                sortedParts.forEach(([code, count]) => {
+                    output += `${code} (${count})\n`;
+                });
+            } else {
+                output += "(Nenhuma peça utilizada)\n";
+            }
+            output += "\n";
+        });
+    });
+
+    const blob = new Blob([output], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Consumo_Pecas_Agrupado.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const getLtpVivoData = (categoryGroup) => {
     if (!data || !data.transactions) return [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     return data.transactions.filter(t => {
-        // Regras de exclusão: Não mostrar Ordens RH nem Ordens OW
         if (t.serviceType?.includes('RH')) return false;
         if (t.warrantyFlag?.includes('OW')) return false;
-
-        // Apenas ordens sem data de finalização
         if (t.finishDateObj || !t.solDateObj) return false;
 
         const diffTime = today - t.solDateObj;
@@ -116,7 +164,6 @@ const PartsReportPage = () => {
         let target = 0;
         let isMatch = false;
 
-        // Prazos específicos por categoria
         if (categoryGroup === 'VD CI' && t.category === 'VD' && t.serviceType?.includes('CI')) {
             target = 3; isMatch = true;
         } else if (categoryGroup === 'VD IH' && t.category === 'VD' && t.serviceType?.includes('IH')) {
@@ -126,6 +173,10 @@ const PartsReportPage = () => {
         } else if (categoryGroup === 'REF' && t.category === 'REF') {
             target = 5; isMatch = true;
         } else if (categoryGroup === 'RAC' && t.category === 'RAC') {
+            target = 5; isMatch = true;
+        } else if (categoryGroup === 'NPC' && t.category === 'NPC') {
+            target = 5; isMatch = true;
+        } else if (categoryGroup === 'MX' && t.category === 'MX') {
             target = 5; isMatch = true;
         }
 
@@ -182,13 +233,11 @@ const PartsReportPage = () => {
 
   const getLtpOrders = (categoryGroup, warrantyStatus) => {
       if (!data || !data.transactions) return [];
-
       const result = [];
 
       data.transactions.forEach(t => {
           if (t.durationDays === null || !t.warrantyFlag) return;
           if (t.warrantyFlag !== warrantyStatus) return;
-
           if (t.serviceType && (t.serviceType.includes('RH') || t.serviceType.includes('II'))) return;
 
           let target = 0;
@@ -200,7 +249,7 @@ const PartsReportPage = () => {
           } else if (categoryGroup === 'VD' && t.category === 'VD' && (!t.serviceType || !t.serviceType.includes('CI'))) {
               target = parseInt(ltpTargetVD, 10);
               isMatchCategory = true;
-          } else if (categoryGroup === 'DA' && ['WSM', 'REF', 'RAC'].includes(t.category)) {
+          } else if (categoryGroup === 'DA' && ['WSM', 'REF', 'RAC', 'NPC', 'MX'].includes(t.category)) {
               target = parseInt(ltpTargetDA, 10);
               isMatchCategory = true;
           }
@@ -277,7 +326,6 @@ const PartsReportPage = () => {
       <div className="config-panel custom-scrollbar">
         <h2 className="config-title">Configuração</h2>
 
-        {/* BOTAO SELETOR DE RELATORIO */}
         <div className="report-type-selector" style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
             <button 
                 className={`btn-type ${reportType === 'PECAS' ? 'active' : ''}`}
@@ -320,6 +368,12 @@ const PartsReportPage = () => {
 
         {data && reportType === 'PECAS' && (
             <>
+                <div className="config-group">
+                    <button className="btn-generate full-width" onClick={handleDownloadPartsSummary} style={{ background: '#28a745' }}>
+                        BAIXAR LISTA POR GARANTIA (TXT)
+                    </button>
+                </div>
+
                 <div className="config-group">
                     <label>Período Considerado (Dias) *MANUAL*</label>
                     <CounterInput value={manualDays} onChange={setManualDays} placeholder="Ex: 30" isLightMode={isLightMode} />
@@ -396,6 +450,8 @@ const PartsReportPage = () => {
                                         <option value="WSM">WSM</option>
                                         <option value="REF">REF</option>
                                         <option value="RAC">RAC</option>
+                                        <option value="NPC">NPC</option>
+                                        <option value="MX">MX</option>
                                     </select>
                                     <input type="number" value={chart.limit} onChange={e => updateChartConfig(chart.id, 'limit', e.target.value)} placeholder="Qtd" style={{width: '50px'}} />
                                 </div>
@@ -424,6 +480,8 @@ const PartsReportPage = () => {
                                     <option value="WSM">WSM</option>
                                     <option value="REF">REF</option>
                                     <option value="RAC">RAC</option>
+                                    <option value="NPC">NPC</option>
+                                    <option value="MX">MX</option>
                                 </select>
                                 <div style={{fontSize: '12px'}}>
                                     <label><input type="radio" checked={rank.onlyWithParts} onChange={() => updateRankingConfig(rank.id, 'onlyWithParts', true)} /> Com Peça</label>
@@ -720,14 +778,13 @@ const PartsReportPage = () => {
                         )}
                     </>
                 ) : (
-                    /* LAYOUT LTP VIVO */
                     <div style={{ width: '100%', padding: '20px' }}>
                         <div className="report-header-modern" style={{ textAlign: 'center', width: '100%', marginBottom: '30px' }}>
                             <h1 style={{ color: isLightMode ? '#000' : '#fff' }}>Ordens LTP em aberto</h1>
                             <p style={{ color: isLightMode ? '#666' : '#bbb' }}>Análise de pendências em {new Date().toLocaleDateString('pt-BR')}</p>
                         </div>
 
-                        {['WSM', 'REF', 'RAC', 'VD CI', 'VD IH'].map(cat => {
+                        {['WSM', 'REF', 'RAC', 'NPC', 'MX', 'VD CI', 'VD IH'].map(cat => {
                             const ltpOrders = getLtpVivoData(cat);
                             if (ltpOrders.length === 0) return null;
 
@@ -784,7 +841,6 @@ const PartsReportPage = () => {
   );
 };
 
-// Componente Toggle (Slider)
 const Toggle = ({ active, onToggle }) => (
     <label className="switch">
         <input type="checkbox" checked={active} onChange={(e) => onToggle(e.target.checked)} />
@@ -792,7 +848,6 @@ const Toggle = ({ active, onToggle }) => (
     </label>
 );
 
-// --- COMPONENTE CUSTOMIZADO PARA INPUTS DE NÚMERO ---
 const CounterInput = ({ value, onChange, placeholder = "0", isLightMode }) => {
     const btnStyle = {
         width: '30px', height: '30px', border: 'none', 
