@@ -66,9 +66,11 @@ const PartsReportPage = () => {
   const [ltpTargetDA, setLtpTargetDA] = useState(5);
   const [ltpTargetVD, setLtpTargetVD] = useState(7);
   const [ltpTargetVDCi, setLtpTargetVDCi] = useState(3);
+  const [ltpTargetNPC, setLtpTargetNPC] = useState(3);
+  const [ltpTargetMX, setLtpTargetMX] = useState(3);
 
   const [ltpFilters, setLtpFilters] = useState({
-      vdOw: true, vdLp: true, daOw: true, daLp: true, vdCiOw: true, vdCiLp: true,
+      vdOw: true, vdLp: true, daOw: true, daLp: true, vdCiOw: true, vdCiLp: true, npcOw: true, npcLp: true, mxOw: true, mxLp: true,
   });
 
   const [data, setData] = useState(null);
@@ -123,7 +125,6 @@ const PartsReportPage = () => {
 
             const sortedParts = Object.entries(partsInGroup).sort((a, b) => b[1] - a[1]);
 
-            // Adicionado \n\n após o título da categoria e garantia
             output += `${cat} ${guar}:\n\n`; 
             
             if (sortedParts.length > 0) {
@@ -175,9 +176,9 @@ const PartsReportPage = () => {
         } else if (categoryGroup === 'RAC' && t.category === 'RAC') {
             target = 5; isMatch = true;
         } else if (categoryGroup === 'NPC' && t.category === 'NPC') {
-            target = 5; isMatch = true;
+            target = parseInt(ltpTargetNPC, 10); isMatch = true;
         } else if (categoryGroup === 'MX' && t.category === 'MX') {
-            target = 5; isMatch = true;
+            target = parseInt(ltpTargetMX, 10); isMatch = true;
         }
 
         if (isMatch && currentDuration > target) {
@@ -249,8 +250,14 @@ const PartsReportPage = () => {
           } else if (categoryGroup === 'VD' && t.category === 'VD' && (!t.serviceType || !t.serviceType.includes('CI'))) {
               target = parseInt(ltpTargetVD, 10);
               isMatchCategory = true;
-          } else if (categoryGroup === 'DA' && ['WSM', 'REF', 'RAC', 'NPC', 'MX'].includes(t.category)) {
+          } else if (categoryGroup === 'DA' && ['WSM', 'REF', 'RAC'].includes(t.category)) {
               target = parseInt(ltpTargetDA, 10);
+              isMatchCategory = true;
+          } else if (categoryGroup === 'NPC' && t.category === 'NPC') {
+              target = parseInt(ltpTargetNPC, 10);
+              isMatchCategory = true;
+          } else if (categoryGroup === 'MX' && t.category === 'MX') {
+              target = parseInt(ltpTargetMX, 10);
               isMatchCategory = true;
           }
 
@@ -500,27 +507,39 @@ const PartsReportPage = () => {
                     </div>
                     {showLtpSection && (
                         <div className="toggle-content fade-in">
-                            <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-                                <div style={{ flex: 1 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px', marginBottom: '15px' }}>
+                                <div>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta DA</label>
                                     <CounterInput value={ltpTargetDA} onChange={setLtpTargetDA} isLightMode={isLightMode} />
                                 </div>
-                                <div style={{ flex: 1 }}>
+                                <div>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta VD</label>
                                     <CounterInput value={ltpTargetVD} onChange={setLtpTargetVD} isLightMode={isLightMode} />
                                 </div>
-                                <div style={{ flex: 1 }}>
+                                <div>
                                     <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta VD CI</label>
                                     <CounterInput value={ltpTargetVDCi} onChange={setLtpTargetVDCi} isLightMode={isLightMode} />
+                                </div>
+                                <div>
+                                    <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta NPC</label>
+                                    <CounterInput value={ltpTargetNPC} onChange={setLtpTargetNPC} isLightMode={isLightMode} />
+                                </div>
+                                <div>
+                                    <label style={{fontSize: '10px', display: 'block', marginBottom: '4px'}}>Meta MX</label>
+                                    <CounterInput value={ltpTargetMX} onChange={setLtpTargetMX} isLightMode={isLightMode} />
                                 </div>
                             </div>
 
                             <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP VD (OW)</span><Toggle active={ltpFilters.vdOw} onToggle={() => toggleLtpFilter('vdOw')} /></div>
                             <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP VD (LP)</span><Toggle active={ltpFilters.vdLp} onToggle={() => toggleLtpFilter('vdLp')} /></div>
                             <div className="sub-toggle" style={{marginBottom: '5px', marginLeft: '15px', color: '#888'}}><span>↳ LTP VD CI (OW)</span><Toggle active={ltpFilters.vdCiOw} onToggle={() => toggleLtpFilter('vdCiOw')} /></div>
-                            <div className="sub-toggle" style={{marginBottom: '10px', marginLeft: '15px', color: '#888'}}><span>↳ LTP VD CI (LP)</span><Toggle active={ltpFilters.vdCiLp} onToggle={() => toggleLtpFilter('vdCiLp')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '5px', marginLeft: '15px', color: '#888'}}><span>↳ LTP VD CI (LP)</span><Toggle active={ltpFilters.vdCiLp} onToggle={() => toggleLtpFilter('vdCiLp')} /></div>
                             <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP DA (OW)</span><Toggle active={ltpFilters.daOw} onToggle={() => toggleLtpFilter('daOw')} /></div>
-                            <div className="sub-toggle"><span>LTP DA (LP)</span><Toggle active={ltpFilters.daLp} onToggle={() => toggleLtpFilter('daLp')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP DA (LP)</span><Toggle active={ltpFilters.daLp} onToggle={() => toggleLtpFilter('daLp')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP NPC (OW)</span><Toggle active={ltpFilters.npcOw} onToggle={() => toggleLtpFilter('npcOw')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP NPC (LP)</span><Toggle active={ltpFilters.npcLp} onToggle={() => toggleLtpFilter('npcLp')} /></div>
+                            <div className="sub-toggle" style={{marginBottom: '5px'}}><span>LTP MX (OW)</span><Toggle active={ltpFilters.mxOw} onToggle={() => toggleLtpFilter('mxOw')} /></div>
+                            <div className="sub-toggle"><span>LTP MX (LP)</span><Toggle active={ltpFilters.mxLp} onToggle={() => toggleLtpFilter('mxLp')} /></div>
                         </div>
                     )}
                 </div>
@@ -728,6 +747,10 @@ const PartsReportPage = () => {
                                     'LTP VD CI (LP)': { cat: 'VD_CI', flag: 'LP', active: ltpFilters.vdCiLp },
                                     'LTP DA (OW)': { cat: 'DA', flag: 'OW', active: ltpFilters.daOw },
                                     'LTP DA (LP)': { cat: 'DA', flag: 'LP', active: ltpFilters.daLp },
+                                    'LTP NPC (OW)': { cat: 'NPC', flag: 'OW', active: ltpFilters.npcOw },
+                                    'LTP NPC (LP)': { cat: 'NPC', flag: 'LP', active: ltpFilters.npcLp },
+                                    'LTP MX (OW)': { cat: 'MX', flag: 'OW', active: ltpFilters.mxOw },
+                                    'LTP MX (LP)': { cat: 'MX', flag: 'LP', active: ltpFilters.mxLp },
                                 }).map(([title, config]) => {
                                     if (!config.active) return null;
                                     const ltpData = getLtpOrders(config.cat, config.flag);
