@@ -313,16 +313,16 @@ const PerformancePopup = ({ isOpen, onClose, kpiData }) => {
       <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-body">
           <h2>Metas Contínuas</h2>
-          <p>Estamos há <strong>{ltpVdWeeks}</strong> semanas dentro do LTP VD (&lt;= 12.8%)</p>
-          <p>Estamos há <strong>{ltpDaWeeks}</strong> semanas dentro do LTP DA (&lt;= 17.4%)</p>
-          <p>Estamos há <strong>{rrrVdWeeks}</strong> semanas dentro do C-RRR VD (&lt;= 2.8%)</p>
-          <p>Estamos há <strong>{ihD1Weeks}</strong> semanas dentro do Perfect Agenda (&gt;= 20%)</p>
-          <p>Estamos há <strong>{firstVisitVdWeeks}</strong> semanas dentro do 1ST VISIT CI (&gt;= 20%)</p>
+          <p>Estamos há <strong>{ltpVdWeeks}</strong> semanas dentro do LTP VD ({"<="} 12.8%)</p>
+          <p>Estamos há <strong>{ltpDaWeeks}</strong> semanas dentro do LTP DA ({"<="} 17.4%)</p>
+          <p>Estamos há <strong>{rrrVdWeeks}</strong> semanas dentro do C-RRR VD ({"<="} 2.8%)</p>
+          <p>Estamos há <strong>{ihD1Weeks}</strong> semanas dentro do Perfect Agenda ({">="} 20%)</p>
+          <p>Estamos há <strong>{firstVisitVdWeeks}</strong> semanas dentro do 1ST VISIT CI ({">="} 20%)</p>
           <hr />
           <h3>Pay For Performance (P4P)</h3>
-          <p>Estamos há <strong>{p4pLtpVdWeeks}</strong> semanas dentro do LTP VD (&lt;= 5%)</p>
-          <p>Estamos há <strong>{p4pLtpDaWeeks}</strong> semanas dentro do LTP DA (&lt;= 7%)</p>
-          <p>Estamos há <strong>{p4pRrrVdWeeks}</strong> semanas dentro do CRRR VD (&lt;= 1.5%)</p>
+          <p>Estamos há <strong>{p4pLtpVdWeeks}</strong> semanas dentro do LTP VD ({"<="} 5%)</p>
+          <p>Estamos há <strong>{p4pLtpDaWeeks}</strong> semanas dentro do LTP DA ({"<="} 7%)</p>
+          <p>Estamos há <strong>{p4pRrrVdWeeks}</strong> semanas dentro do CRRR VD ({"<="} 1.5%)</p>
         </div>
         <div className="dialog-footer">
           <button onClick={onClose}>Fechar</button>
@@ -474,6 +474,15 @@ function Dashboard({ showPopup, setShowPopup }) {
     loadCachedState();
   }, []);
 
+  // Pegamos a semana atual do ano via Data
+  const getCurrentWeekNumber = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  };
+
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -497,22 +506,46 @@ function Dashboard({ showPopup, setShowPopup }) {
     const qKpis = query(kpisCollectionRef, orderBy('week', 'asc'));
     const unsubscribeKpis = onSnapshot(qKpis, (snapshot) => {
       const fetchedKpis = snapshot.docs.map(doc => ({
+        id: doc.id,
         name: `W ${String(doc.data().week).padStart(2, '0')}`,
-        week: doc.data().week,
+        week: parseInt(doc.data().week, 10),
+        timestamp: doc.data().timestamp,
         ...doc.data(),
       }));
       
-      const hasEndYear = fetchedKpis.some(k => k.week >= 40);
-      const hasStartYear = fetchedKpis.some(k => k.week <= 12);
+      // 1. Remover Semanas Duplicadas (Mantém apenas o registro mais recente inserido no banco)
+      const uniqueMap = new Map();
+      fetchedKpis.forEach(kpi => {
+          if (!uniqueMap.has(kpi.week)) {
+              uniqueMap.set(kpi.week, kpi);
+          } else {
+              const existing = uniqueMap.get(kpi.week);
+              if (kpi.timestamp && existing.timestamp && typeof kpi.timestamp.toMillis === 'function') {
+                  if (kpi.timestamp.toMillis() > existing.timestamp.toMillis()) {
+                      uniqueMap.set(kpi.week, kpi);
+                  }
+              } else {
+                  uniqueMap.set(kpi.week, kpi);
+              }
+          }
+      });
       
-      let sortedKpis = [];
-      if (hasEndYear && hasStartYear) {
-          const nextYearWeeks = fetchedKpis.filter(k => k.week <= 12);
-          const currentYearWeeks = fetchedKpis.filter(k => k.week > 12);
-          sortedKpis = [...currentYearWeeks, ...nextYearWeeks];
-      } else {
-          sortedKpis = [...fetchedKpis].sort((a, b) => a.week - b.week);
-      }
+      let sortedKpis = Array.from(uniqueMap.values());
+      
+      // 2. Ordenação Cronológica Contínua Infallível
+      const currentWeek = getCurrentWeekNumber();
+      const margin = 4; // Tolerância para semanas do "futuro" cadastradas recentemente
+      const threshold = currentWeek + margin;
+
+      sortedKpis.sort((a, b) => {
+          // Lógica: Se a semana no banco (ex: 22) é maior que nosso limiar (ex: 19), 
+          // ela é do ano passado (pontuação base). 
+          // Se for menor ou igual (ex: 14), ela é deste ano (pontuação + 52).
+          const scoreA = a.week > threshold ? a.week : a.week + 52;
+          const scoreB = b.week > threshold ? b.week : b.week + 52;
+          return scoreA - scoreB;
+      });
+
       setKpiData(sortedKpis);
 
       if (sortedKpis.length > 0 && !initialLoadDone && selectedWeek === '') {
@@ -534,13 +567,6 @@ function Dashboard({ showPopup, setShowPopup }) {
       // eslint-disable-next-line 
   }, [technicianRanking, kpiData, filterMetric, filterType, selectedWeek]);
 
-  const getCurrentWeekNumber = () => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-    const yearStart = new Date(d.getFullYear(), 0, 1);
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-  };
 
   const getDateRangeOfWeek = (w) => {
     let targetWeek = w;
@@ -683,7 +709,7 @@ function Dashboard({ showPopup, setShowPopup }) {
         // 3. Processamento para Exibição
         const chartData = Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
         
-        // CORREÇÃO: Calcula média por técnico ativo no dia
+        // Calcula média por técnico ativo no dia
         chartData.forEach(d => {
             const activeTechCount = d.activeTechs.size;
             d.activeTechCount = activeTechCount; // Armazena contagem numérica
@@ -718,8 +744,6 @@ function Dashboard({ showPopup, setShowPopup }) {
                 summaryValue = totalOS > 0 ? totalRevenue / totalOS : 0;
                 break;
             case 'productivity':
-                // CORREÇÃO NO RESUMO: Soma das médias diárias ou Média Geral por dia-homem?
-                // Média Geral = Total OS / Total de (Técnicos Ativos * Dias)
                 const totalTechDays = chartData.reduce((acc, curr) => {
                     if (curr.date >= startStr && curr.date <= endStr) {
                         return acc + (curr.activeTechCount || 0);
@@ -775,6 +799,7 @@ function Dashboard({ showPopup, setShowPopup }) {
     }
   };
 
+  // Garante que só as 10 MAIS RECENTES da fila super-ordenada apareçam
   const chartData = kpiData.slice(-10);
   
   const ltpvdChartData = useMemo(() => chartData.map(d => ({ name: d.name, 'LTP VD %': parseFloat(d['LTP VD %']), 'LTP VD QTD': parseFloat(d['LTP VD QTD']) })), [chartData]);
@@ -816,12 +841,9 @@ function Dashboard({ showPopup, setShowPopup }) {
     const newBuffer = [...recentClicks, now];
     setClickBuffer(newBuffer);
     
-    console.log("Cliques detectados:", newBuffer.length); // DEBUG
-
     if (newBuffer.length >= 3) {
         setShowHiddenColumns(prev => !prev);
         setClickBuffer([]); // Reseta após ativar
-        console.log("Easter Egg Ativado/Desativado!");
     }
   };
 
@@ -922,7 +944,6 @@ function Dashboard({ showPopup, setShowPopup }) {
                         <ComposedChart data={filteredResults.chartData}>
                             <CartesianGrid stroke="#444" strokeDasharray="3 3" />
                             <XAxis dataKey="date" stroke="#ccc" tickFormatter={(str) => {
-                                // CORREÇÃO: Parse manual da string YYYY-MM-DD
                                 if (!str) return '';
                                 const parts = str.split('-'); 
                                 if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
@@ -935,7 +956,6 @@ function Dashboard({ showPopup, setShowPopup }) {
                                 return parseFloat(value).toFixed(2);
                             }} />
                             <Legend />
-                            {/* Área de Destaque para o Intervalo Selecionado */}
                             {filteredResults.selectedRange && (
                                 <ReferenceArea 
                                     yAxisId="left"
@@ -947,7 +967,6 @@ function Dashboard({ showPopup, setShowPopup }) {
                             )}
 
                             {filterMetric === 'revenuePerOrder' && <Line yAxisId="left" type="monotone" dataKey="revenuePerOrder" name="Receita Média por Ordem" stroke="#00C49F" strokeWidth={3} />}
-                            {/* CORREÇÃO: dataKey alterado para averagePerTech */}
                             {filterMetric === 'productivity' && <Bar yAxisId="left" dataKey="averagePerTech" name="Produtividade" barSize={20} fill="#00C49F" />}
                             {filterMetric === 'adjustedProductivity' && <Line yAxisId="left" type="monotone" dataKey="adjustedProductivity" name="Produtividade Ajustada" stroke="#FF8042" strokeWidth={3} />}
                             {filterMetric === 'avgApprovedRevenue' && <Line yAxisId="left" type="monotone" dataKey="avgApprovedRevenue" name="Receita Média por OS" stroke="#00C49F" strokeWidth={3} />}
