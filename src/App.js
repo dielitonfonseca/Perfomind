@@ -10,6 +10,9 @@ import ImportRoutesPage from './pages/ImportRoutesPage';
 import MyRoutePage from './pages/MyRoutePage';
 import PartsReportPage from './pages/PartsReportPage'; // Importação da nova página
 import './App.css';
+import AcessoKpisPage from './pages/AcessoKpisPage';
+import CityDashboardPage from './pages/CityDashboardPage';
+
 // Adicionado Wrench nas importações para o ícone de Peças
 import { Home, LayoutDashboard, Truck, Upload, BarChart3, FileText, Menu, MapPin, Wrench } from 'lucide-react';
 
@@ -130,6 +133,8 @@ function App() {
             <Route path="/cadastrar" element={<ImportRoutesPage />} />
             <Route path="/minha-rota" element={<MyRoutePage />} />
             <Route path="/relatorio-pecas" element={<PartsReportPage />} />
+            <Route path="/acesso-kpis" element={<AcessoKpisPage />} />
+            <Route path="/dashboard-cidade/:city" element={<CityDashboardPage />} />
           </Routes>
         </main>
         
