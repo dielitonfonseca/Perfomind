@@ -67,5 +67,14 @@
     { "code": "A15", "label": "A15 - Troca de compressor" },
     { "code": "A20", "label": "A20 - Troca de acessório (ex. controle)" },
     { "code": "---", "label": "OUTRO - Descreva na observação" }
+  ],
+  "checklistQuestions": [
+    "Cliente apto a receber pesquisas de satisfação?",
+    "Produto bem fechado e sem danos?",
+    "Consultou o cliente sobre outros defeitos e dúvidas?",
+    "Mostrado o componente com defeito e o substituído?",
+    "Testes básicos realizados (Som, imagem, internet)?",
+    "Dica educacional sobre uso ao cliente foi apresentada (Smartthings, alexa, durabilidade etc)?",
+    "Falou sobre a garantia do serviço para o consumidor?"
   ]
 }

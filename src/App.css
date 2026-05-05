@@ -2157,6 +2157,13 @@ button, .btn-pill, .btn-modern, .btn-icon, .btn-action, .app-card-link {
     box-shadow: 0 4px 10px rgba(33, 150, 243, 0.2);
 }
 
+.toggle-btn.active-red, .toggle-small.active-red {
+    background: #d32f2f;
+    color: #fff;
+    border-color: #d32f2f;
+    box-shadow: 0 4px 10px rgba(211, 47, 47, 0.2);
+}
+
 /* Seleção de Tipo Pequeno (VD, WSM...) */
 .toggle-small {
     background: #333;

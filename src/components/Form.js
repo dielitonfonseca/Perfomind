@@ -46,6 +46,8 @@ function Form({ setFormData }) {
     // Checklist
     const [tipoAparelho, setTipoAparelho] = useState('VD');
     const [tipoChecklist, setTipoChecklist] = useState('PREENCHIDO'); 
+    const [garantiaTipo, setGarantiaTipo] = useState(''); // LP ou OW
+    const [checklistRespostas, setChecklistRespostas] = useState({});
     
     // UI
     const [isScannerOpen, setScannerOpen] = useState(false);
@@ -145,6 +147,8 @@ function Form({ setFormData }) {
         setPeca(''); setPecasSelecionadas([]); setPecasDaRota([]); setObservacoes(''); setModelo(''); setSerial('');
         setTipoAparelho('VD'); setSignature(null); setPpidPecaNova(''); setPpidPecaUsada(''); 
         setOrcamentoAprovado(false); setOrcamentoValor(''); setLimpezaAprovada(false); setTipoChecklist('PREENCHIDO');
+        setGarantiaTipo('');
+        setChecklistRespostas({});
     };
 
     const sanitizeForPdf = (text) => {
@@ -274,16 +278,33 @@ function Form({ setFormData }) {
     };
 
     const gerarTextoResultado = (data) => {
-        const { numero, cliente, tecnico, defeito, reparo, peca, ppidPecaNova, ppidPecaUsada, observacoes, tipo, orcamentoAprovado, orcamentoValor, limpezaAprovada } = data;
+        const { numero, cliente, tecnico, defeito, reparo, peca, ppidPecaNova, ppidPecaUsada, observacoes, tipo, orcamentoAprovado, orcamentoValor, limpezaAprovada, garantiaTipo, checklistRespostas } = data;
         const linhaDefeito = tipo === 'samsung' ? `Código de defeito: ${defeito}` : `Defeito: ${defeito}`;
         const linhaReparo = tipo === 'samsung' ? `Código de reparo: ${reparo}` : `Solicitação de peça: ${reparo}`;
         const linhaPecaUsada = peca ? `Peça usada: ${peca}` : '';
         const detalhes = [linhaPecaUsada, ppidPecaNova ? `PPID NOVA: ${ppidPecaNova}` : '', ppidPecaUsada ? `PPID USADA: ${ppidPecaUsada}` : ''].filter(Boolean).join('\n');
+        
+        let extraChecklist = '';
+        if (garantiaTipo) {
+            extraChecklist += `\nChamado fechado em garantia: ${garantiaTipo}\n`;
+            
+            if (garantiaTipo === 'LP') {
+                const respostasEntries = Object.entries(checklistRespostas);
+                if (respostasEntries.length > 0) {
+                    extraChecklist += `\n--- Verificações do Checklist ---\n`;
+                    respostasEntries.forEach(([pergunta, resposta]) => {
+                        extraChecklist += `[${resposta}] ${pergunta}\n`;
+                    });
+                }
+            }
+        }
+
         let obsText = '';
         if (orcamentoAprovado && orcamentoValor) obsText += `Orçamento aprovado: R$ ${orcamentoValor}\n`;
         if (limpezaAprovada) obsText += 'Limpeza realizada\n';
         obsText += observacoes;
-        return `OS: ${numero}\nCliente: ${cliente}\nTécnico: ${tecnico}\n${linhaDefeito}\n${linhaReparo}\n${detalhes}\nObservações:\n${obsText}\n. . . . .`;
+        
+        return `OS: ${numero}\nCliente: ${cliente}\nTécnico: ${tecnico}\n${linhaDefeito}\n${linhaReparo}\n${detalhes}${extraChecklist}\nObservações:\n${obsText}\n. . . . .`;
     };
 
     // --- 6. SUBMIT ---
@@ -315,7 +336,8 @@ function Form({ setFormData }) {
             numero: numeroOS, cliente: clienteNome, tecnico: tecnicoFinal,
             defeito: defeitoFinal, reparo: reparoFinal, peca: pecaFinal,
             ppidPecaNova, ppidPecaUsada, observacoes, tipo: tipoOS,
-            orcamentoAprovado, orcamentoValor, limpezaAprovada
+            orcamentoAprovado, orcamentoValor, limpezaAprovada,
+            garantiaTipo, checklistRespostas
         });
 
         try {
@@ -575,6 +597,54 @@ function Form({ setFormData }) {
                              >
                                 <FileDown size={20} /> Gerar Checklist PDF
                              </button>
+
+                             <div style={{marginTop:'10px', borderTop:'1px dashed #555', paddingTop:'20px'}}>
+                                 <label className="label-modern" style={{textAlign:'center', marginBottom:'10px'}}>Chamado fechado em garantia?</label>
+                                 <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
+                                     <div 
+                                         className={`toggle-btn ${garantiaTipo === 'LP' ? 'active-green' : ''}`}
+                                         onClick={() => setGarantiaTipo('LP')}
+                                         style={{flex:1}}
+                                     >
+                                         LP
+                                     </div>
+                                     <div 
+                                         className={`toggle-btn ${garantiaTipo === 'OW' ? 'active-red' : ''}`}
+                                         onClick={() => {setGarantiaTipo('OW'); setChecklistRespostas({});}}
+                                         style={{flex:1}}
+                                     >
+                                         OW
+                                     </div>
+                                 </div>
+                             </div>
+
+                             {/* PERGUNTAS ADICIONAIS DO CHECKLIST (APENAS SE LP FOR SELECIONADO) */}
+                             {garantiaTipo === 'LP' && (
+                                 <div className="input-group-animation" style={{marginTop:'10px'}}>
+                                     <h4 style={{fontSize:'0.9em', color:'#00C49F', marginBottom:'15px', textTransform:'uppercase', letterSpacing:'1px', textAlign:'center'}}>Verificações do Checklist</h4>
+                                     {formOptions.checklistQuestions.map((q, idx) => (
+                                         <div key={idx} style={{marginBottom:'20px'}}>
+                                             <label className="label-modern" style={{fontSize:'0.9em', color:'#eee'}}>{q}</label>
+                                             <div style={{display:'flex', gap:'10px', marginTop:'8px'}}>
+                                                 <div 
+                                                     className={`toggle-btn ${checklistRespostas[q] === 'SIM' ? 'active-green' : ''}`}
+                                                     onClick={() => setChecklistRespostas(prev => ({...prev, [q]: 'SIM'}))}
+                                                     style={{flex:1}}
+                                                 >
+                                                     SIM
+                                                 </div>
+                                                 <div 
+                                                     className={`toggle-btn ${checklistRespostas[q] === 'NÃO' ? 'active-red' : ''}`}
+                                                     onClick={() => setChecklistRespostas(prev => ({...prev, [q]: 'NÃO'}))}
+                                                     style={{flex:1}}
+                                                 >
+                                                     NÃO
+                                                 </div>
+                                             </div>
+                                         </div>
+                                     ))}
+                                 </div>
+                             )}
                         </div>
                     </div>
                 )}
