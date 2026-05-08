@@ -9,12 +9,13 @@ import ReportsConfigPage from './pages/ReportsConfigPage';
 import ImportRoutesPage from './pages/ImportRoutesPage';
 import MyRoutePage from './pages/MyRoutePage';
 import PartsReportPage from './pages/PartsReportPage'; // Importação da nova página
+import ContelePage from './pages/ContelePage';
 import './App.css';
 import AcessoKpisPage from './pages/AcessoKpisPage';
 import CityDashboardPage from './pages/CityDashboardPage';
 
 // Adicionado Wrench nas importações para o ícone de Peças
-import { Home, LayoutDashboard, Truck, Upload, BarChart3, FileText, Menu, MapPin, Wrench } from 'lucide-react';
+import { Home, LayoutDashboard, Truck, Upload, BarChart3, FileText, Menu, MapPin, Wrench, Download } from 'lucide-react';
 
 // Menu Inferior Dinâmico
 function BottomNav({ showEasterEgg }) {
@@ -81,6 +82,10 @@ function BottomNav({ showEasterEgg }) {
             <FileText size={20} />
             <span>Relatório</span>
           </Link>
+          <Link to="/contele" className={isActive('/contele')}>
+            <Download size={20} />
+            <span>Contele</span>
+          </Link>
         </>
       )}
     </nav>
@@ -135,6 +140,7 @@ function App() {
             <Route path="/relatorio-pecas" element={<PartsReportPage />} />
             <Route path="/acesso-kpis" element={<AcessoKpisPage />} />
             <Route path="/dashboard-cidade/:city" element={<CityDashboardPage />} />
+            <Route path="/contele" element={<ContelePage />} />
           </Routes>
         </main>
         
